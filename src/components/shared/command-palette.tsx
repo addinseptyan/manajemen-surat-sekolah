@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Inbox, PlusCircle, Send } from "lucide-react";
+import { useTheme } from "next-themes";
+import { FileText, Inbox, Moon, PlusCircle, Send, Sun } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import { NAV_ITEMS } from "@/lib/theme";
 import {
@@ -24,6 +25,7 @@ interface CommandPaletteProps {
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const router = useRouter();
   const { suratList } = useApp();
+  const { resolvedTheme, setTheme } = useTheme();
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -52,7 +54,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             value="buat surat keluar baru tambah"
             onSelect={() => runCommand(() => router.push("/surat-keluar?new=1"))}
           >
-            <PlusCircle className="size-4 text-blue-600" />
+            <PlusCircle className="size-4 text-blue-600 dark:text-blue-400" />
             <span>Buat Surat Keluar Baru</span>
             <CommandShortcut>Baru</CommandShortcut>
           </CommandItem>
@@ -60,9 +62,24 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             value="catat surat masuk baru disposisi"
             onSelect={() => runCommand(() => router.push("/surat-masuk?new=1"))}
           >
-            <Inbox className="size-4 text-emerald-600" />
-            <span>Catat Surat Masuk & Disposisi</span>
+            <Inbox className="size-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Catat Surat Masuk &amp; Disposisi</span>
             <CommandShortcut>Baru</CommandShortcut>
+          </CommandItem>
+          <CommandItem
+            value="ganti tema mode gelap terang dark light"
+            onSelect={() =>
+              runCommand(() => setTheme(resolvedTheme === "dark" ? "light" : "dark"))
+            }
+          >
+            {resolvedTheme === "dark" ? (
+              <Sun className="size-4 text-amber-400" />
+            ) : (
+              <Moon className="size-4 text-indigo-600" />
+            )}
+            <span>
+              Beralih ke Mode {resolvedTheme === "dark" ? "Terang" : "Gelap"}
+            </span>
           </CommandItem>
         </CommandGroup>
 
@@ -77,7 +94,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 value={`menu ${item.label} ${item.description}`}
                 onSelect={() => runCommand(() => router.push(item.href))}
               >
-                <Icon className="size-4 text-slate-500" />
+                <Icon className="text-muted-foreground size-4" />
                 <span>{item.label}</span>
               </CommandItem>
             );
@@ -108,7 +125,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               )}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-xs font-medium">{s.perihal}</div>
-                <div className="truncate font-mono text-[11px] text-slate-400">
+                <div className="text-muted-foreground truncate font-mono text-[11px]">
                   {s.nomor || s.pihak}
                 </div>
               </div>

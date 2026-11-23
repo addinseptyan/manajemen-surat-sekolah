@@ -4,14 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle,
+  Calendar,
   ChevronLeft,
   ChevronRight,
   Download,
   Eye,
-  FileSpreadsheet,
   FileText,
+  FastForward,
   Inbox,
   Loader2,
+  Lock,
   MoreHorizontal,
   Paperclip,
   Pencil,
@@ -28,13 +30,12 @@ import type { Arah, Surat } from "@/lib/types";
 import {
   cn,
   composeDisposisi,
-  DISPOSISI_OPTIONS,
   downloadCsv,
   formatNomorSurat,
+  formatTanggalIndo,
   parseDisposisi,
   sleep,
 } from "@/lib/utils";
-import { CsvImportDialog } from "@/components/shared/csv-import-dialog";
 import { DocumentPreviewDialog } from "@/components/shared/document-preview-dialog";
 import { KlasifikasiCombobox } from "@/components/shared/klasifikasi-combobox";
 import { PageHeader } from "@/components/shared/page-header";
@@ -77,6 +78,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -103,6 +105,7 @@ export function SuratView({ arah }: SuratViewProps) {
   const {
     suratList,
     klasifikasiList,
+    disposisiList,
     pengaturan,
     currentUser,
     getNextUrut,
@@ -114,7 +117,6 @@ export function SuratView({ arah }: SuratViewProps) {
   // Loading & modal states
   const [initialLoading, setInitialLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [csvOpen, setCsvOpen] = useState(false);
 
   // Filter & Pagination state
   const [query, setQuery] = useState("");
@@ -132,7 +134,7 @@ export function SuratView({ arah }: SuratViewProps) {
   const [editingSurat, setEditingSurat] = useState<Surat | null>(null);
   const [formTanggal, setFormTanggal] = useState("2026-11-23");
   const [formUrut, setFormUrut] = useState("8");
-  const [urutTouched, setUrutTouched] = useState(false);
+  const [lompatUrutEnabled, setLompatUrutEnabled] = useState(false);
   const [formJenis, setFormJenis] = useState(klasifikasiList[0]?.kode ?? "B");
   const [formNomorMasuk, setFormNomorMasuk] = useState("");
   const [formPihak, setFormPihak] = useState("");
@@ -162,11 +164,23 @@ export function SuratView({ arah }: SuratViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Daftar jabatan disposisi aktif (ditambah tag lama bila sedang mengedit surat lama)
+  const availableDisposisiNames = useMemo(() => {
+    const activeNames = disposisiList.filter((d) => d.aktif).map((d) => d.nama);
+    const merged = [...activeNames];
+    for (const tag of formDisposisi) {
+      if (!merged.includes(tag)) merged.push(tag);
+    }
+    return merged;
+  }, [disposisiList, formDisposisi]);
+
   // Hitung tunggakan pada tahun yang sedang dipilih untuk banner pengingat penertiban
   const arahTahunList = useMemo(
     () =>
       suratList.filter(
-        (s) => s.arah === arah && (filterTahun === "ALL" ? true : String(s.tahun) === filterTahun)
+        (s) =>
+          s.arah === arah &&
+          (filterTahun === "ALL" ? true : String(s.tahun) === filterTahun)
       ),
     [suratList, arah, filterTahun]
   );
@@ -194,7 +208,12 @@ export function SuratView({ arah }: SuratViewProps) {
         return haystack.includes(query.toLowerCase());
       })
       .sort((a, b) => {
-        if (isKeluar && a.tahun === b.tahun && typeof a.urut === "number" && typeof b.urut === "number") {
+        if (
+          isKeluar &&
+          a.tahun === b.tahun &&
+          typeof a.urut === "number" &&
+          typeof b.urut === "number"
+        ) {
           return b.urut - a.urut;
         }
         return b.tanggal.localeCompare(a.tanggal);
@@ -206,12 +225,13 @@ export function SuratView({ arah }: SuratViewProps) {
   const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const formTahun = Number(formTanggal.slice(0, 4)) || 2026;
+  const normalNextUrut = useMemo(() => getNextUrut(formTahun), [getNextUrut, formTahun]);
   const targetUrutNum = Math.max(1, Number(formUrut) || 1);
 
   const pendingGapList = useMemo(() => {
-    if (!isKeluar || editingSurat) return [];
+    if (!isKeluar || editingSurat || !lompatUrutEnabled) return [];
     return getMissingUrutBefore(formTahun, targetUrutNum);
-  }, [isKeluar, editingSurat, getMissingUrutBefore, formTahun, targetUrutNum]);
+  }, [isKeluar, editingSurat, lompatUrutEnabled, getMissingUrutBefore, formTahun, targetUrutNum]);
 
   const previewNomorKeluar = useMemo(() => {
     if (!isKeluar) return "";
@@ -230,7 +250,7 @@ export function SuratView({ arah }: SuratViewProps) {
     setEditingSurat(null);
     setFormTanggal(today);
     setFormUrut(String(getNextUrut(yr)));
-    setUrutTouched(false);
+    setLompatUrutEnabled(false);
     setFormJenis(klasifikasiList[0]?.kode ?? "B");
     setFormNomorMasuk("");
     setFormPihak("");
@@ -249,7 +269,7 @@ export function SuratView({ arah }: SuratViewProps) {
     setEditingSurat(item);
     setFormTanggal(item.tanggal);
     setFormUrut(String(typeof item.urut === "number" ? item.urut : 1));
-    setUrutTouched(true);
+    setLompatUrutEnabled(false);
     setFormJenis(item.jenis || klasifikasiList[0]?.kode || "B");
     setFormNomorMasuk(item.nomor);
     setFormPihak(isSlot ? "" : item.pihak);
@@ -264,12 +284,23 @@ export function SuratView({ arah }: SuratViewProps) {
 
   function handleTanggalChange(nextDate: string) {
     setFormTanggal(nextDate);
-    // Jika tambah baru & user belum mengunci nomor urut manual, otomatis sesuaikan per tahun (mis. pilih 2027 -> reset 001!)
-    if (!editingSurat && !urutTouched) {
+    if (!editingSurat && !lompatUrutEnabled) {
       const nextYr = Number(nextDate.slice(0, 4));
       if (nextYr >= 2000) {
         setFormUrut(String(getNextUrut(nextYr)));
       }
+    }
+  }
+
+  function handleToggleLompatUrut(checked: boolean) {
+    setLompatUrutEnabled(checked);
+    if (checked) {
+      toast.warning("Mode Lompat Nomor Urut Diaktifkan", {
+        description:
+          "Nomor yang dilewati akan otomatis dicatat sebagai slot 'Belum Lengkap' agar arsip fisiknya ditertibkan.",
+      });
+    } else {
+      setFormUrut(String(normalNextUrut));
     }
   }
 
@@ -289,10 +320,19 @@ export function SuratView({ arah }: SuratViewProps) {
       ? formCatatan.trim()
       : composeDisposisi(formDisposisi, formCatatan);
 
+    const effectiveUrut =
+      isKeluar && !editingSurat
+        ? lompatUrutEnabled
+          ? targetUrutNum
+          : normalNextUrut
+        : isKeluar
+          ? targetUrutNum
+          : undefined;
+
     const { saved, generatedGaps } = saveSurat({
       id: editingSurat?.id,
       arah,
-      urutManual: isKeluar ? targetUrutNum : undefined,
+      urutManual: effectiveUrut,
       jenis: isKeluar ? formJenis : "",
       nomorManual: isKeluar ? undefined : formNomorMasuk,
       tanggal: formTanggal,
@@ -338,9 +378,21 @@ export function SuratView({ arah }: SuratViewProps) {
   function handleExportCsv() {
     downloadCsv(
       `arsip-surat-${arah}-${filterTahun}.csv`,
-      ["Tanggal", "Nomor", "Urut", isKeluar ? "Jenis" : "Asal", "Pihak", "Perihal", "Catatan", "Berkas", "Status"],
+      [
+        "Tanggal",
+        "Tanggal Indo",
+        "Nomor",
+        "Urut",
+        isKeluar ? "Jenis" : "Asal",
+        "Pihak",
+        "Perihal",
+        "Catatan",
+        "Berkas",
+        "Status",
+      ],
       filtered.map((s) => [
         s.tanggal,
+        formatTanggalIndo(s.tanggal),
         s.nomor,
         String(s.urut),
         isKeluar ? s.jenis : "Masuk",
@@ -367,46 +419,38 @@ export function SuratView({ arah }: SuratViewProps) {
         detailSurat.status === "Belum Lengkap")
   );
 
+  const todayIso = new Date().toISOString().slice(0, 10);
+
   return (
     <div>
       {/* Area Interaktif Layar */}
       <div className="print:hidden">
+        {/* Header Seimbang: Hanya CTA Utama di Kanan Atas */}
         <PageHeader
           title={isKeluar ? "Surat Keluar" : "Surat Masuk"}
           description={
             isKeluar
               ? "Penomoran otomatis per tahun (reset 001 tiap tahun baru) & penertiban nomor lompat."
-              : "Pencatatan surat masuk dari instansi luar, disposisi, dan pratinjau berkas scan."
+              : "Pencatatan surat masuk dari instansi luar, disposisi cepat, dan pratinjau berkas scan."
           }
           icon={isKeluar ? Send : Inbox}
           theme={themeKey}
           actions={
-            <>
-              <Button variant="outline" onClick={() => setCsvOpen(true)}>
-                <FileSpreadsheet className="size-4 text-amber-600" />
-                Impor CSV
-              </Button>
-              <Button variant="outline" onClick={handleExportCsv}>
-                <Download className="size-4" />
-                Unduh CSV
-              </Button>
-              <Button variant="outline" onClick={() => window.print()}>
-                <Printer className="size-4" />
-                Cetak Agenda
-              </Button>
-              <Button className={theme.buttonPrimary} onClick={openCreateDialog}>
-                <Plus className="size-4" />
-                {isKeluar ? "Buat Surat Keluar" : "Catat Surat Masuk"}
-              </Button>
-            </>
+            <Button
+              className={cn("w-full sm:w-auto", theme.buttonPrimary)}
+              onClick={openCreateDialog}
+            >
+              <Plus className="size-4" />
+              {isKeluar ? "Buat Surat Keluar" : "Catat Surat Masuk"}
+            </Button>
           }
         />
 
         {/* Banner Peringatan Penertiban Administrasi */}
         {(slotKosongCount > 0 || tanpaScanCount > 0) && (
-          <div className="mb-4 flex flex-col justify-between gap-3 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50/60 to-white p-3.5 sm:flex-row sm:items-center">
-            <div className="flex items-start gap-2.5 text-xs text-amber-950">
-              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+          <div className="mb-4 flex flex-col justify-between gap-3 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50/60 to-white p-3.5 sm:flex-row sm:items-center dark:border-amber-800/60 dark:from-amber-950/50 dark:via-amber-950/25 dark:to-card">
+            <div className="flex items-start gap-2.5 text-xs text-amber-950 dark:text-amber-200">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <div>
                 <span className="font-semibold">Pengingat Penertiban Arsip: </span>
                 {slotKosongCount > 0 && (
@@ -457,211 +501,396 @@ export function SuratView({ arah }: SuratViewProps) {
           </div>
         )}
 
-        {/* Filter Bar */}
-        <Card className="mb-4 p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                placeholder={
-                  isKeluar
-                    ? "Cari nomor surat, tujuan, perihal, atau pembuat..."
-                    : "Cari nomor asal, pengirim, perihal, atau disposisi..."
-                }
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setPage(1);
-                }}
-                className="pl-9 pr-8"
-              />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  className="absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-slate-600"
-                >
-                  <X className="size-4" />
-                </button>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {isKeluar && (
-                <KlasifikasiCombobox
-                  items={klasifikasiList}
-                  value={filterJenis}
-                  onValueChange={(v) => {
-                    setFilterJenis(v);
+        {/* Toolbar Pencarian, Filter & Aksi Ekspor Seimbang */}
+        <Card className="mb-4 p-3.5 sm:p-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
+              <div className="relative flex-1">
+                <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+                <Input
+                  placeholder={
+                    isKeluar
+                      ? "Cari nomor surat, tujuan, perihal, atau pembuat..."
+                      : "Cari nomor asal, pengirim, perihal, atau disposisi..."
+                  }
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
                     setPage(1);
                   }}
-                  includeAllOption
-                  allLabel="Semua Jenis (A–Z)"
-                  className="w-48"
+                  className="pr-8 pl-9"
                 />
-              )}
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
 
-              <Select
-                value={filterKelengkapan}
-                onValueChange={(v) => {
-                  setFilterKelengkapan(v as FilterKelengkapan);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className="w-44">
-                  <SelectValue placeholder="Kelengkapan" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Semua Kelengkapan</SelectItem>
-                  <SelectItem value="LENGKAP_SCAN">Lengkap + Scan</SelectItem>
-                  <SelectItem value="TANPA_SCAN">Belum Ada Scan</SelectItem>
-                  {isKeluar && (
-                    <SelectItem value="SLOT_KOSONG">Nomor Kosong (Dicari)</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+                {isKeluar && (
+                  <div className="col-span-2 sm:w-48">
+                    <KlasifikasiCombobox
+                      items={klasifikasiList}
+                      value={filterJenis}
+                      onValueChange={(v) => {
+                        setFilterJenis(v);
+                        setPage(1);
+                      }}
+                      includeAllOption
+                      allLabel="Semua Jenis (A–Z)"
+                    />
+                  </div>
+                )}
 
-              <Select
-                value={filterTahun}
-                onValueChange={(v) => {
-                  setFilterTahun(v);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className="w-28">
-                  <SelectValue placeholder="Tahun" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Semua</SelectItem>
-                  <SelectItem value="2027">2027</SelectItem>
-                  <SelectItem value="2026">2026</SelectItem>
-                  <SelectItem value="2025">2025</SelectItem>
-                </SelectContent>
-              </Select>
+                <Select
+                  value={filterKelengkapan}
+                  onValueChange={(v) => {
+                    setFilterKelengkapan(v as FilterKelengkapan);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-full sm:w-44">
+                    <SelectValue placeholder="Kelengkapan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Semua Kelengkapan</SelectItem>
+                    <SelectItem value="LENGKAP_SCAN">Lengkap + Scan</SelectItem>
+                    <SelectItem value="TANPA_SCAN">Belum Ada Scan</SelectItem>
+                    {isKeluar && (
+                      <SelectItem value="SLOT_KOSONG">Nomor Kosong (Dicari)</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={filterTahun}
+                  onValueChange={(v) => {
+                    setFilterTahun(v);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-full sm:w-28">
+                    <SelectValue placeholder="Tahun" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Semua</SelectItem>
+                    <SelectItem value="2027">2027</SelectItem>
+                    <SelectItem value="2026">2026</SelectItem>
+                    <SelectItem value="2025">2025</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Baris Bawah Toolbar: Ringkasan Hasil di Kiri + Tombol Sekunder Seimbang di Kanan */}
+            <div className="flex flex-col gap-2 border-t border-border/70 pt-2.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-muted-foreground text-xs">
+                Ditemukan <b className="text-foreground">{filtered.length}</b> arsip{" "}
+                {isKeluar ? "surat keluar" : "surat masuk"}{" "}
+                {filterTahun !== "ALL" ? `tahun ${filterTahun}` : ""}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportCsv}
+                  className="w-full sm:w-auto"
+                >
+                  <Download className="size-3.5" />
+                  Unduh CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.print()}
+                  className="w-full sm:w-auto"
+                >
+                  <Printer className="size-3.5" />
+                  Cetak Agenda
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
 
-        {/* Tabel Data */}
+        {/* Kontainer Data: Desktop Table (md+) & Mobile Card View (<md) */}
         <Card className="overflow-hidden py-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-28">Tanggal</TableHead>
-                <TableHead>Nomor Surat</TableHead>
-                <TableHead>{isKeluar ? "Tujuan" : "Instansi Pengirim"}</TableHead>
-                <TableHead>Perihal &amp; {isKeluar ? "Catatan" : "Disposisi"}</TableHead>
-                <TableHead className="w-36">Kelengkapan</TableHead>
-                <TableHead className="w-14 text-right">Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginated.map((row) => {
-                const isSlot = row.status === "Belum Lengkap";
-                const canManage =
-                  currentUser.role === "admin" ||
-                  row.pembuat === currentUser.nama ||
-                  isSlot;
-                const { tags: dispTags, cleanNote } = parseDisposisi(row.catatan);
+          {/* TAMPILAN DESKTOP: Tabel Lengkap */}
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-36">Tanggal</TableHead>
+                  <TableHead>Nomor Surat</TableHead>
+                  <TableHead>{isKeluar ? "Tujuan" : "Instansi Pengirim"}</TableHead>
+                  <TableHead>Perihal &amp; {isKeluar ? "Catatan" : "Disposisi"}</TableHead>
+                  <TableHead className="w-36">Kelengkapan</TableHead>
+                  <TableHead className="w-14 text-right">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginated.map((row) => {
+                  const isSlot = row.status === "Belum Lengkap";
+                  const canManage =
+                    currentUser.role === "admin" ||
+                    row.pembuat === currentUser.nama ||
+                    isSlot;
+                  const { tags: dispTags, cleanNote } = parseDisposisi(row.catatan);
 
-                return (
-                  <TableRow
-                    key={row.id}
-                    onClick={() => setDetailSurat(row)}
-                    className={cn(
-                      "cursor-pointer",
-                      isSlot && "bg-amber-50/50 hover:bg-amber-50/90"
-                    )}
-                  >
-                    <TableCell className="text-xs font-medium text-slate-600 whitespace-nowrap">
-                      {row.tanggal}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span
+                  return (
+                    <TableRow
+                      key={row.id}
+                      onClick={() => setDetailSurat(row)}
+                      className={cn(
+                        "cursor-pointer",
+                        isSlot &&
+                          "bg-amber-50/60 hover:bg-amber-50 dark:bg-amber-950/25 dark:hover:bg-amber-950/40"
+                      )}
+                    >
+                      <TableCell className="text-muted-foreground text-xs font-medium whitespace-nowrap">
+                        {formatTanggalIndo(row.tanggal)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "font-mono text-xs font-semibold",
+                              isSlot
+                                ? "text-amber-800 dark:text-amber-300"
+                                : "text-foreground"
+                            )}
+                          >
+                            {row.nomor || "—"}
+                          </span>
+                          {row.jenis && (
+                            <Badge
+                              variant={isKeluar ? "blue" : "emerald"}
+                              className="text-[10px]"
+                            >
+                              {row.jenis}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-muted-foreground mt-0.5 text-[11px]">
+                          {isSlot ? "Perlu dilengkapi TU" : `Oleh ${row.pembuat}`}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-foreground/90 max-w-48 font-medium">
+                        <div
                           className={cn(
-                            "font-mono text-xs font-semibold",
-                            isSlot ? "text-amber-800" : "text-slate-900"
+                            "truncate",
+                            isSlot && "text-amber-800 italic dark:text-amber-300"
+                          )}
+                          title={row.pihak}
+                        >
+                          {row.pihak}
+                        </div>
+                      </TableCell>
+                      <TableCell className="max-w-xs">
+                        <div
+                          className={cn(
+                            "font-medium",
+                            isSlot
+                              ? "text-amber-900 dark:text-amber-200"
+                              : "text-foreground"
                           )}
                         >
-                          {row.nomor || "—"}
+                          {row.perihal}
+                        </div>
+                        {dispTags.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {dispTags.map((t) => (
+                              <Badge
+                                key={t}
+                                variant="emerald"
+                                className="px-2 py-0 text-[10px]"
+                              >
+                                {t}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        {cleanNote && (
+                          <div className="text-muted-foreground mt-0.5 line-clamp-1 text-xs">
+                            {cleanNote}
+                          </div>
+                        )}
+                        {row.fileName && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPreviewDocSurat(row);
+                            }}
+                            className="mt-1 inline-flex cursor-pointer items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 dark:hover:bg-indigo-950"
+                          >
+                            <Paperclip className="size-3" />
+                            {row.fileName}
+                          </button>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {isSlot ? (
+                          <Badge variant="amber">
+                            <AlertTriangle className="size-3" />
+                            Nomor Kosong
+                          </Badge>
+                        ) : row.fileName ? (
+                          <Badge variant="emerald">Lengkap + Scan</Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-300 text-amber-700 dark:border-amber-800 dark:text-amber-300"
+                          >
+                            Belum Scan
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell
+                        className="text-right"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" aria-label="Menu baris">
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setDetailSurat(row)}>
+                              <Eye className="size-4" />
+                              Lihat Detail
+                            </DropdownMenuItem>
+                            {row.fileName && (
+                              <DropdownMenuItem onClick={() => setPreviewDocSurat(row)}>
+                                <FileText className="size-4" />
+                                Pratinjau &amp; Unduh Scan
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              disabled={!canManage}
+                              onClick={() => openEditDialog(row)}
+                            >
+                              <Pencil className="size-4" />
+                              {isSlot ? "Lengkapi Nomor Ini" : "Ubah / Upload Scan"}
+                            </DropdownMenuItem>
+                            {canManage && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  onClick={() => setDeletingSurat(row)}
+                                >
+                                  <Trash2 className="size-4" />
+                                  Hapus Baris
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+
+                {paginated.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-12 text-center">
+                      <div className="text-muted-foreground mx-auto flex max-w-xs flex-col items-center gap-2">
+                        <FileText className="size-8 stroke-1" />
+                        <p className="text-foreground text-sm font-medium">
+                          Belum ada surat pada filter ini
+                        </p>
+                        <p className="text-xs">
+                          Coba ganti tahun/filter atau klik tombol buat surat baru di kanan atas.
+                        </p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* TAMPILAN MOBILE (<md): Mobile Card View Tanpa Geser Horizontal */}
+          <div className="divide-y divide-border md:hidden">
+            {paginated.map((row) => {
+              const isSlot = row.status === "Belum Lengkap";
+              const canManage =
+                currentUser.role === "admin" ||
+                row.pembuat === currentUser.nama ||
+                isSlot;
+              const { tags: dispTags, cleanNote } = parseDisposisi(row.catatan);
+
+              return (
+                <div
+                  key={row.id}
+                  onClick={() => setDetailSurat(row)}
+                  className={cn(
+                    "hover:bg-muted/50 active:bg-muted/70 cursor-pointer space-y-2.5 p-3.5 transition-colors",
+                    isSlot && "bg-amber-50/50 dark:bg-amber-950/25"
+                  )}
+                >
+                  {/* Baris Atas Kartu: Nomor Surat + Status & Menu */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={cn(
+                            "font-mono text-xs font-bold break-all",
+                            isSlot
+                              ? "text-amber-800 dark:text-amber-300"
+                              : "text-foreground"
+                          )}
+                        >
+                          {row.nomor || "Tanpa Nomor"}
                         </span>
                         {row.jenis && (
-                          <Badge variant={isKeluar ? "blue" : "emerald"} className="text-[10px]">
+                          <Badge
+                            variant={isKeluar ? "blue" : "emerald"}
+                            className="px-1.5 py-0 text-[10px]"
+                          >
                             {row.jenis}
                           </Badge>
                         )}
                       </div>
-                      <div className="mt-0.5 text-[11px] text-slate-400">
-                        {isSlot ? "Perlu dilengkapi TU" : `Oleh ${row.pembuat}`}
-                      </div>
-                    </TableCell>
-                    <TableCell className="max-w-48 font-medium text-slate-800">
-                      <div
-                        className={cn("truncate", isSlot && "italic text-amber-800")}
-                        title={row.pihak}
-                      >
-                        {row.pihak}
-                      </div>
-                    </TableCell>
-                    <TableCell className="max-w-xs">
-                      <div
-                        className={cn(
-                          "font-medium",
-                          isSlot ? "text-amber-900" : "text-slate-800"
-                        )}
-                      >
-                        {row.perihal}
-                      </div>
-                      {dispTags.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {dispTags.map((t) => (
-                            <Badge key={t} variant="emerald" className="px-2 py-0 text-[10px]">
-                              {t}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                      {cleanNote && (
-                        <div className="mt-0.5 line-clamp-1 text-xs text-slate-500">
-                          {cleanNote}
-                        </div>
-                      )}
-                      {row.fileName && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPreviewDocSurat(row);
-                          }}
-                          className="mt-1 inline-flex cursor-pointer items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700 hover:bg-indigo-100"
-                        >
-                          <Paperclip className="size-3" />
-                          {row.fileName}
-                        </button>
-                      )}
-                    </TableCell>
-                    <TableCell>
+                    </div>
+
+                    <div
+                      className="flex shrink-0 items-center gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {isSlot ? (
-                        <Badge variant="amber">
-                          <AlertTriangle className="size-3" />
+                        <Badge variant="amber" className="text-[10px]">
                           Nomor Kosong
                         </Badge>
                       ) : row.fileName ? (
-                        <Badge variant="emerald">Lengkap + Scan</Badge>
+                        <Badge variant="emerald" className="text-[10px]">
+                          + Scan
+                        </Badge>
                       ) : (
-                        <Badge variant="outline" className="border-amber-200 text-amber-700">
+                        <Badge
+                          variant="outline"
+                          className="border-amber-300 text-[10px] text-amber-700 dark:border-amber-800 dark:text-amber-300"
+                        >
                           Belum Scan
                         </Badge>
                       )}
-                    </TableCell>
-                    <TableCell
-                      className="text-right"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" aria-label="Menu baris">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7"
+                            aria-label="Menu surat"
+                          >
                             <MoreHorizontal className="size-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -697,35 +926,99 @@ export function SuratView({ arah }: SuratViewProps) {
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-
-              {paginated.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-12 text-center">
-                    <div className="mx-auto flex max-w-xs flex-col items-center gap-2 text-slate-400">
-                      <FileText className="size-8 stroke-1" />
-                      <p className="text-sm font-medium text-slate-600">
-                        Belum ada surat pada filter ini
-                      </p>
-                      <p className="text-xs">
-                        Coba ganti tahun/filter atau klik tombol buat surat baru di kanan atas.
-                      </p>
                     </div>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                  </div>
 
-          {/* Footer Pagination */}
-          <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-4 py-3 text-xs text-slate-500">
-            <span>
-              Menampilkan <b>{paginated.length}</b> dari <b>{filtered.length}</b> baris
+                  {/* Isi Utama Kartu: Perihal & Pihak */}
+                  <div className="space-y-1">
+                    <div
+                      className={cn(
+                        "text-sm leading-snug font-semibold",
+                        isSlot
+                          ? "text-amber-900 dark:text-amber-200"
+                          : "text-foreground"
+                      )}
+                    >
+                      {row.perihal}
+                    </div>
+                    <div className="text-muted-foreground text-xs">
+                      <span className="font-medium">
+                        {isKeluar ? "Tujuan:" : "Pengirim:"}
+                      </span>{" "}
+                      <span className="text-foreground/90">{row.pihak}</span>
+                    </div>
+                  </div>
+
+                  {/* Disposisi / Catatan / Lampiran */}
+                  {(dispTags.length > 0 || cleanNote || row.fileName) && (
+                    <div className="space-y-1.5">
+                      {dispTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {dispTags.map((t) => (
+                            <Badge
+                              key={t}
+                              variant="emerald"
+                              className="px-2 py-0 text-[10px]"
+                            >
+                              {t}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      {cleanNote && (
+                        <p className="text-muted-foreground line-clamp-2 text-xs">
+                          {cleanNote}
+                        </p>
+                      )}
+                      {row.fileName && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDocSurat(row)}
+                            className="inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-medium text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300"
+                          >
+                            <Paperclip className="size-3 shrink-0" />
+                            <span className="truncate">{row.fileName}</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Footer Meta Kartu: Tanggal Indonesia & Pencatat */}
+                  <div className="text-muted-foreground flex items-center justify-between pt-0.5 text-[11px]">
+                    <span className="inline-flex items-center gap-1">
+                      <Calendar className="size-3" />
+                      {formatTanggalIndo(row.tanggal)}
+                    </span>
+                    <span>{isSlot ? "Perlu dilengkapi TU" : `Oleh ${row.pembuat}`}</span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {paginated.length === 0 && (
+              <div className="p-8 text-center">
+                <div className="text-muted-foreground mx-auto flex max-w-xs flex-col items-center gap-2">
+                  <FileText className="size-8 stroke-1" />
+                  <p className="text-foreground text-sm font-medium">
+                    Belum ada surat pada filter ini
+                  </p>
+                  <p className="text-xs">
+                    Coba ganti tahun/filter atau ketuk tombol buat surat baru di atas.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer Pagination Responsif */}
+          <div className="bg-muted/40 text-muted-foreground flex flex-col gap-2.5 border-t border-border px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-center sm:text-left">
+              Menampilkan <b className="text-foreground">{paginated.length}</b> dari{" "}
+              <b className="text-foreground">{filtered.length}</b> baris
             </span>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center justify-center gap-1.5">
               <Button
                 variant="outline"
                 size="sm"
@@ -735,7 +1028,7 @@ export function SuratView({ arah }: SuratViewProps) {
                 <ChevronLeft className="size-3.5" />
                 Sebelumnya
               </Button>
-              <span className="px-2 font-medium text-slate-700">
+              <span className="text-foreground px-2 font-medium">
                 {safePage} / {totalPages}
               </span>
               <Button
@@ -752,8 +1045,8 @@ export function SuratView({ arah }: SuratViewProps) {
         </Card>
       </div>
 
-      {/* Area Cetak Resmi Buku Agenda (Dinamis dari Pengaturan Sekolah) */}
-      <div className="hidden print:block">
+      {/* Area Cetak Resmi Buku Agenda (Selalu Hitam-Putih & Tanggal Bahasa Indonesia) */}
+      <div className="hidden text-black print:block">
         <div className="border-b-2 border-black pb-3 text-center">
           <div className="text-sm font-semibold uppercase">{pengaturan.instansiInduk}</div>
           <div className="text-lg font-bold uppercase">{pengaturan.namaSekolah}</div>
@@ -768,7 +1061,7 @@ export function SuratView({ arah }: SuratViewProps) {
           <thead>
             <tr className="bg-slate-100">
               <th className="border border-black px-2 py-1.5 text-left">No</th>
-              <th className="border border-black px-2 py-1.5 text-left">Tanggal</th>
+              <th className="border border-black px-2 py-1.5 text-left">Tanggal Surat</th>
               <th className="border border-black px-2 py-1.5 text-left">Nomor Surat</th>
               <th className="border border-black px-2 py-1.5 text-left">
                 {isKeluar ? "Tujuan" : "Pengirim"}
@@ -783,7 +1076,9 @@ export function SuratView({ arah }: SuratViewProps) {
             {filtered.map((s, idx) => (
               <tr key={s.id}>
                 <td className="border border-black px-2 py-1">{idx + 1}</td>
-                <td className="border border-black px-2 py-1 whitespace-nowrap">{s.tanggal}</td>
+                <td className="border border-black px-2 py-1 whitespace-nowrap">
+                  {formatTanggalIndo(s.tanggal)}
+                </td>
                 <td className="border border-black px-2 py-1 font-mono">{s.nomor || "-"}</td>
                 <td className="border border-black px-2 py-1">{s.pihak}</td>
                 <td className="border border-black px-2 py-1">{s.perihal}</td>
@@ -804,7 +1099,7 @@ export function SuratView({ arah }: SuratViewProps) {
         <div className="mt-8 flex justify-end text-xs">
           <div className="w-64 text-center">
             <div>
-              {pengaturan.kotaSurat}, {new Date().toISOString().slice(0, 10)}
+              {pengaturan.kotaSurat}, {formatTanggalIndo(todayIso)}
             </div>
             <div className="font-semibold">Kepala {pengaturan.namaSekolah}</div>
             <div className="h-16" />
@@ -813,9 +1108,6 @@ export function SuratView({ arah }: SuratViewProps) {
           </div>
         </div>
       </div>
-
-      {/* Modal Impor CSV Terpadu */}
-      <CsvImportDialog arah={arah} open={csvOpen} onOpenChange={setCsvOpen} />
 
       {/* Modal In-App Document Preview + Download */}
       <DocumentPreviewDialog
@@ -850,16 +1142,16 @@ export function SuratView({ arah }: SuratViewProps) {
             </DialogTitle>
             <DialogDescription>
               {isKeluar
-                ? "Nomor urut otomatis melanjutkan urutan tahun berjalan (reset ke 001 saat berganti tahun), atau dapat dilompati bila arsip sebelumnya belum ketemu."
-                : "Masukkan detail surat yang diterima beserta tujuan disposisi dan berkas scan."}
+                ? "Nomor urut terkunci otomatis sesuai urutan berikutnya agar tertib. Aktifkan sakelar lompat nomor hanya bila ada arsip fisik sebelumnya yang terselip."
+                : "Masukkan detail surat masuk beserta tujuan disposisi dan berkas scan."}
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSave} className="space-y-4">
             {isKeluar && (
-              <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-medium tracking-wide text-blue-700 uppercase">
+              <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3 dark:border-blue-800/70 dark:bg-blue-950/40">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-medium tracking-wide text-blue-700 uppercase dark:text-blue-300">
                     Pratinjau Nomor Surat ({formTahun})
                   </span>
                   {formTahun >= 2027 && targetUrutNum === 1 && (
@@ -868,7 +1160,7 @@ export function SuratView({ arah }: SuratViewProps) {
                     </Badge>
                   )}
                 </div>
-                <div className="mt-1 font-mono text-sm font-bold text-blue-950">
+                <div className="mt-1 font-mono text-sm font-bold break-all text-blue-950 dark:text-blue-100">
                   {previewNomorKeluar}
                 </div>
               </div>
@@ -889,18 +1181,20 @@ export function SuratView({ arah }: SuratViewProps) {
               {isKeluar ? (
                 <>
                   <div className="space-y-1.5">
-                    <Label htmlFor="urut-surat">Nomor Urut</Label>
+                    <Label htmlFor="urut-surat" className="flex items-center gap-1">
+                      Nomor Urut
+                      {!editingSurat && !lompatUrutEnabled && (
+                        <Lock className="text-muted-foreground size-3" />
+                      )}
+                    </Label>
                     <Input
                       id="urut-surat"
                       type="number"
                       min={1}
                       required
-                      disabled={Boolean(editingSurat)}
+                      disabled={Boolean(editingSurat) || !lompatUrutEnabled}
                       value={formUrut}
-                      onChange={(e) => {
-                        setFormUrut(e.target.value);
-                        setUrutTouched(true);
-                      }}
+                      onChange={(e) => setFormUrut(e.target.value)}
                       className="font-mono font-semibold"
                     />
                   </div>
@@ -926,23 +1220,65 @@ export function SuratView({ arah }: SuratViewProps) {
               )}
             </div>
 
-            {/* Peringatan Otomatis jika Melompati Nomor Urut */}
-            {pendingGapList.length > 0 && (
-              <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
-                <div>
-                  <b>Lompat Nomor Terdeteksi:</b> Nomor urut{" "}
-                  <code className="font-mono font-bold">
-                    {pendingGapList
-                      .slice(0, 6)
-                      .map((n) => String(n).padStart(pengaturan.pad, "0"))
-                      .join(", ")}
-                    {pendingGapList.length > 6 ? "..." : ""}
-                  </code>{" "}
-                  belum ada di tahun {formTahun}. Sistem akan otomatis membuat{" "}
-                  <b>{pendingGapList.length} slot pengingat &ldquo;Belum Lengkap&rdquo;</b> agar
-                  berkasnya dicari &amp; di-scan nanti.
+            {/* Kontrol Switch Lompati Nomor Urut (Khusus Tambah Surat Keluar Baru) */}
+            {isKeluar && !editingSurat && (
+              <div className="space-y-2.5">
+                <div className="bg-muted/50 flex items-center justify-between gap-3 rounded-xl border border-border px-3.5 py-2.5">
+                  <div className="min-w-0">
+                    <Label
+                      htmlFor="switch-lompat-urut"
+                      className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold"
+                    >
+                      <FastForward className="size-3.5 text-amber-600 dark:text-amber-400" />
+                      Lompati Nomor Urut
+                    </Label>
+                    <p className="text-muted-foreground mt-0.5 text-[11px]">
+                      Urutan normal berikutnya:{" "}
+                      <b className="text-foreground font-mono">
+                        {String(normalNextUrut).padStart(pengaturan.pad, "0")}
+                      </b>
+                    </p>
+                  </div>
+                  <Switch
+                    id="switch-lompat-urut"
+                    checked={lompatUrutEnabled}
+                    onCheckedChange={handleToggleLompatUrut}
+                  />
                 </div>
+
+                {/* Peringatan Eksplisit Saat Switch Lompat Nomor Diaktifkan */}
+                {lompatUrutEnabled && (
+                  <div className="flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950 dark:border-amber-800/80 dark:bg-amber-950/50 dark:text-amber-200">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <div className="space-y-1 leading-relaxed">
+                      <div className="font-semibold">
+                        Perhatian: Mode Lompat Nomor Urut Aktif!
+                      </div>
+                      <p>
+                        Gunakan fitur ini hanya jika nomor urut sebelumnya sudah terpakai tetapi
+                        berkas fisiknya terselip (misal surat terakhir nomor{" "}
+                        <code className="font-mono font-bold">10</code>, nomor{" "}
+                        <code className="font-mono font-bold">11–15</code> belum ketemu, lalu Anda
+                        mengetik <code className="font-mono font-bold">16</code>).
+                      </p>
+                      {pendingGapList.length > 0 && (
+                        <p className="rounded-lg bg-amber-100/80 px-2.5 py-1.5 font-medium text-amber-950 dark:bg-amber-900/50 dark:text-amber-100">
+                          Sistem akan otomatis membuat{" "}
+                          <b>{pendingGapList.length} slot pengingat &ldquo;Belum Lengkap&rdquo;</b>{" "}
+                          untuk nomor:{" "}
+                          <code className="font-mono font-bold">
+                            {pendingGapList
+                              .slice(0, 6)
+                              .map((n) => String(n).padStart(pengaturan.pad, "0"))
+                              .join(", ")}
+                            {pendingGapList.length > 6 ? "..." : ""}
+                          </code>
+                          .
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -954,7 +1290,9 @@ export function SuratView({ arah }: SuratViewProps) {
                 id="pihak"
                 required
                 placeholder={
-                  isKeluar ? "Contoh: Orang Tua Siswa Kelas XII" : "Contoh: Dinas Pendidikan Provinsi"
+                  isKeluar
+                    ? "Contoh: Orang Tua Siswa Kelas XII"
+                    : "Contoh: Dinas Pendidikan Provinsi"
                 }
                 value={formPihak}
                 onChange={(e) => setFormPihak(e.target.value)}
@@ -974,9 +1312,14 @@ export function SuratView({ arah }: SuratViewProps) {
 
             {!isKeluar && (
               <div className="space-y-2">
-                <Label>Tujuan Disposisi Cepat</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Tujuan Disposisi Cepat</Label>
+                  <span className="text-muted-foreground text-[11px]">
+                    Dikelola Admin di Pengaturan
+                  </span>
+                </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {DISPOSISI_OPTIONS.map((opt) => {
+                  {availableDisposisiNames.map((opt) => {
                     const selected = formDisposisi.includes(opt);
                     return (
                       <button
@@ -987,7 +1330,7 @@ export function SuratView({ arah }: SuratViewProps) {
                           "cursor-pointer rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                           selected
                             ? "border-emerald-600 bg-emerald-600 text-white"
-                            : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                            : "bg-muted/60 text-foreground/80 hover:bg-muted border-border"
                         )}
                       >
                         {opt}
@@ -1030,7 +1373,7 @@ export function SuratView({ arah }: SuratViewProps) {
                 }}
               />
               {formFileName && (
-                <p className="text-xs font-medium text-emerald-700">
+                <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
                   Berkas terlampir: {formFileName}
                 </p>
               )}
@@ -1068,7 +1411,7 @@ export function SuratView({ arah }: SuratViewProps) {
             <AlertDialogTitle>Hapus Baris Surat Ini?</AlertDialogTitle>
             <AlertDialogDescription>
               Data surat{" "}
-              <b className="font-mono text-slate-800">
+              <b className="text-foreground font-mono">
                 {deletingSurat?.nomor || deletingSurat?.perihal}
               </b>{" "}
               akan dihapus dari daftar arsip. Jika ini adalah nomor urut paling akhir, nomor

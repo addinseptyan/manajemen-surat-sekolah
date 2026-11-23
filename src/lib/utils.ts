@@ -11,8 +11,39 @@ export function sleep(ms = 260): Promise<void> {
 
 const ROMAN_MONTHS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
 
+const NAMA_BULAN_INDO = [
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
+];
+
 export function toRomanMonth(monthOneBased: number): string {
   return ROMAN_MONTHS[Math.max(0, Math.min(11, monthOneBased - 1))] ?? "I";
+}
+
+/**
+ * Mengubah tanggal format ISO "YYYY-MM-DD" menjadi format resmi Indonesia "24 November 2026".
+ * Bebas pergeseran zona waktu karena langsung mem-parsing komponen string.
+ */
+export function formatTanggalIndo(isoDate: string): string {
+  if (!isoDate) return "-";
+  const match = isoDate.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!match) return isoDate;
+  const tahun = match[1];
+  const bulanIdx = Number(match[2]) - 1;
+  const hari = Number(match[3]);
+  const namaBulan = NAMA_BULAN_INDO[bulanIdx];
+  if (!namaBulan || !hari) return isoDate;
+  return `${hari} ${namaBulan} ${tahun}`;
 }
 
 export function formatNomorSurat(
@@ -43,20 +74,11 @@ export function getInitials(nama: string): string {
     .join("");
 }
 
-export const DISPOSISI_OPTIONS = [
-  "Waka Kurikulum",
-  "Waka Kesiswaan",
-  "Waka Humas / Hubin",
-  "Waka Sarpras",
-  "Kepala TU",
-  "Arsip",
-] as const;
-
 const DISPOSISI_REGEX = /^\[Disposisi:\s*([^\]]+)\]\s*/i;
 
 /**
  * Mengekstrak daftar chip tujuan disposisi dari kolom `catatan` tanpa mengubah skema kolom Google Sheets.
- * Format kompatibel: "[Disposisi: Waka Kurikulum, Kepala TU] Isi catatan..."
+ * Format kompatibel: "[Disposisi: Kepala Sekolah, Waka Kurikulum] Isi catatan..."
  */
 export function parseDisposisi(catatan: string): {
   tags: string[];

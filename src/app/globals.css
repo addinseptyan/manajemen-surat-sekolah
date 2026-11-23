@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@custom-variant dark (&:is(.dark *));
+
 :root {
   --background: oklch(0.985 0.002 247.839);
   --foreground: oklch(0.145 0.015 255);
@@ -22,6 +24,28 @@
   --input: oklch(0.915 0.01 255);
   --ring: oklch(0.585 0.21 264);
   --radius: 0.625rem;
+}
+
+.dark {
+  --background: oklch(0.155 0.018 260);
+  --foreground: oklch(0.965 0.006 255);
+  --card: oklch(0.2 0.02 260);
+  --card-foreground: oklch(0.965 0.006 255);
+  --popover: oklch(0.21 0.022 260);
+  --popover-foreground: oklch(0.965 0.006 255);
+  --primary: oklch(0.62 0.21 264);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.26 0.022 260);
+  --secondary-foreground: oklch(0.95 0.008 255);
+  --muted: oklch(0.255 0.02 260);
+  --muted-foreground: oklch(0.7 0.018 255);
+  --accent: oklch(0.275 0.024 260);
+  --accent-foreground: oklch(0.965 0.006 255);
+  --destructive: oklch(0.62 0.22 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.295 0.022 260);
+  --input: oklch(0.295 0.022 260);
+  --ring: oklch(0.62 0.21 264);
 }
 
 @theme inline {
@@ -55,7 +79,15 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-indigo-100 selection:text-indigo-900;
+    @apply bg-background text-foreground antialiased transition-colors duration-300 ease-out selection:bg-indigo-500/20;
+  }
+  aside,
+  header,
+  [data-slot="card"],
+  [data-slot="input"],
+  [data-slot="textarea"],
+  [data-slot="select-trigger"] {
+    @apply transition-colors duration-200 ease-out;
   }
 }
 
@@ -64,8 +96,10 @@
     size: A4 landscape;
     margin: 12mm;
   }
+  html,
   body {
     background: #ffffff !important;
     color: #000000 !important;
+    color-scheme: light !important;
   }
 }

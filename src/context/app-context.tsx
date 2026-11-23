@@ -1,13 +1,29 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  INITIAL_DISPOSISI,
   INITIAL_KLASIFIKASI,
   INITIAL_PENGATURAN,
   INITIAL_SURAT,
   INITIAL_USERS,
 } from "@/lib/mock-data";
-import type { Arah, Klasifikasi, Pengaturan, Role, Surat, User } from "@/lib/types";
+import type {
+  Arah,
+  DisposisiJabatan,
+  Klasifikasi,
+  Pengaturan,
+  Role,
+  Surat,
+  User,
+} from "@/lib/types";
 import { formatNomorSurat } from "@/lib/utils";
 
 export interface SaveSuratInput {
@@ -35,18 +51,22 @@ interface AppContextValue {
   users: User[];
   suratList: Surat[];
   klasifikasiList: Klasifikasi[];
+  disposisiList: DisposisiJabatan[];
   pengaturan: Pengaturan;
   login: (userId: string) => void;
   getNextUrut: (tahun: number) => number;
   getMissingUrutBefore: (tahun: number, targetUrut: number) => number[];
   saveSurat: (input: SaveSuratInput) => SaveSuratResult;
   deleteSurat: (id: string) => void;
-  importCsvSurat: (
-    rows: Omit<Surat, "id" | "dibuat" | "pembuat" | "status" | "fileUrl">[]
-  ) => number;
   savePengaturan: (next: Pengaturan) => void;
   saveKlasifikasi: (item: Klasifikasi, oldKode?: string) => { ok: boolean; error?: string };
   deleteKlasifikasi: (kode: string) => { ok: boolean; error?: string };
+  saveDisposisi: (input: {
+    id?: string;
+    nama: string;
+    aktif: boolean;
+  }) => { ok: boolean; error?: string };
+  deleteDisposisi: (id: string) => void;
   saveUser: (input: { id?: string; nama: string; role: Role; aktif: boolean }) => void;
   toggleUserAktif: (id: string, aktif: boolean) => void;
 }
@@ -64,10 +84,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUserId, setCurrentUserId] = useState<string>(INITIAL_USERS[0].id);
   const [suratList, setSuratList] = useState<Surat[]>(INITIAL_SURAT);
   const [rawKlasifikasi, setRawKlasifikasi] = useState<Klasifikasi[]>(INITIAL_KLASIFIKASI);
+  const [disposisiList, setDisposisiList] =
+    useState<DisposisiJabatan[]>(INITIAL_DISPOSISI);
   const [pengaturan, setPengaturan] = useState<Pengaturan>(INITIAL_PENGATURAN);
 
   const klasifikasiList = useMemo(() => sortKlasifikasi(rawKlasifikasi), [rawKlasifikasi]);
   const currentUser = users.find((u) => u.id === currentUserId) ?? users[0];
+
+  useEffect(() => {
+    document.title = `${pengaturan.namaAplikasi} — ${pengaturan.namaSekolah}`;
+  }, [pengaturan.namaAplikasi, pengaturan.namaSekolah]);
 
   function login(userId: string) {
     const found = users.find((u) => u.id === userId && u.aktif);
@@ -132,7 +158,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
             perihal: input.perihal,
             catatan: input.catatan,
             fileName: input.fileName ?? item.fileName,
-            fileUrl: input.fileUrl ?? (input.fileName ? item.fileUrl || "#demo-file" : item.fileUrl),
+            fileUrl:
+              input.fileUrl ??
+              (input.fileName ? item.fileUrl || "#demo-file" : item.fileUrl),
             fileMime: input.fileMime ?? item.fileMime,
             status: "Lengkap",
             pembuat:
@@ -150,7 +178,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ? Math.max(1, input.urutManual ?? getNextUrut(tahun))
         : ("" as const);
 
-    // Jika kebetulan user memasukkan nomor urut yang sudah ada sebagai slot "Belum Lengkap", timpa slot itu
     if (input.arah === "keluar" && typeof targetUrut === "number") {
       const existingGapSlot = suratList.find(
         (s) =>
@@ -231,22 +258,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSuratList((prev) => prev.filter((s) => s.id !== id));
   }
 
-  function importCsvSurat(
-    rows: Omit<Surat, "id" | "dibuat" | "pembuat" | "status" | "fileUrl">[]
-  ): number {
-    const today = new Date().toISOString().slice(0, 10);
-    const created: Surat[] = rows.map((r, idx) => ({
-      ...r,
-      id: `imp-${Date.now()}-${idx}`,
-      fileUrl: r.fileName ? "#demo-file" : "",
-      status: "Lengkap",
-      pembuat: currentUser.nama,
-      dibuat: today,
-    }));
-    setSuratList((prev) => [...created, ...prev]);
-    return created.length;
-  }
-
   function savePengaturan(next: Pengaturan) {
     setPengaturan(next);
   }
@@ -295,12 +306,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   }
 
+  function saveDisposisi(input: { id?: string; nama: string; aktif: boolean }) {
+    const clean = input.nama.trim();
+    if (!clean) {
+      return { ok: false, error: "Nama jabatan disposisi wajib diisi." };
+    }
+    const duplicate = disposisiList.some(
+      (d) => d.nama.toLowerCase() === clean.toLowerCase() && d.id !== input.id
+    );
+    if (duplicate) {
+      return { ok: false, error: `"${clean}" sudah ada di daftar disposisi.` };
+    }
+
+    if (input.id) {
+      setDisposisiList((prev) =>
+        prev.map((d) =>
+          d.id === input.id ? { ...d, nama: clean, aktif: input.aktif } : d
+        )
+      );
+    } else {
+      setDisposisiList((prev) => [
+        ...prev,
+        { id: `d-${Date.now()}`, nama: clean, aktif: input.aktif },
+      ]);
+    }
+    return { ok: true };
+  }
+
+  function deleteDisposisi(id: string) {
+    setDisposisiList((prev) => prev.filter((d) => d.id !== id));
+  }
+
   function saveUser(input: { id?: string; nama: string; role: Role; aktif: boolean }) {
     const today = new Date().toISOString().slice(0, 10);
     if (input.id) {
       setUsers((prev) =>
         prev.map((u) =>
-          u.id === input.id ? { ...u, nama: input.nama, role: input.role, aktif: input.aktif } : u
+          u.id === input.id
+            ? { ...u, nama: input.nama, role: input.role, aktif: input.aktif }
+            : u
         )
       );
       return;
@@ -328,16 +372,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         users,
         suratList,
         klasifikasiList,
+        disposisiList,
         pengaturan,
         login,
         getNextUrut,
         getMissingUrutBefore,
         saveSurat,
         deleteSurat,
-        importCsvSurat,
         savePengaturan,
         saveKlasifikasi,
         deleteKlasifikasi,
+        saveDisposisi,
+        deleteDisposisi,
         saveUser,
         toggleUserAktif,
       }}

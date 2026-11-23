@@ -56,9 +56,9 @@ function CommandInput({
   return (
     <div
       data-slot="command-input-wrapper"
-      className="flex h-10 items-center gap-2 border-b border-slate-100 px-3"
+      className="flex h-10 items-center gap-2 border-b border-border px-3"
     >
-      <Search className="size-4 shrink-0 text-slate-400" />
+      <Search className="text-muted-foreground size-4 shrink-0" />
       <CommandPrimitive.Input
         data-slot="command-input"
         className={cn(
@@ -93,7 +93,7 @@ function CommandEmpty(
   return (
     <CommandPrimitive.Empty
       data-slot="command-empty"
-      className="py-6 text-center text-xs text-slate-500"
+      className="text-muted-foreground py-6 text-center text-xs"
       {...props}
     />
   );

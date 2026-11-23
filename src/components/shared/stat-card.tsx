@@ -18,11 +18,11 @@ export function StatCard({ label, value, hint, icon: Icon, theme }: StatCardProp
     <Card className={cn("bg-gradient-to-br py-4", t.softCard)}>
       <CardContent className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-medium text-slate-500">{label}</p>
+          <p className="text-muted-foreground text-xs font-medium">{label}</p>
           <div className={cn("mt-1.5 text-3xl font-bold tracking-tight", t.accentText)}>
             {value}
           </div>
-          {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+          {hint && <p className="text-muted-foreground mt-1 text-xs">{hint}</p>}
         </div>
         <div
           className={cn(
