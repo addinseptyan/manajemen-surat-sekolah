@@ -1,6 +1,6 @@
 export type Role = "admin" | "pegawai";
 export type Arah = "keluar" | "masuk";
-export type StatusSurat = "Aktif" | "Batal";
+export type StatusSurat = "Lengkap" | "Belum Lengkap";
 export type ThemeKey = "indigo" | "blue" | "emerald" | "amber" | "violet" | "rose";
 
 export interface User {
@@ -24,12 +24,10 @@ export interface Surat {
   catatan: string;
   fileName?: string;
   fileUrl: string;
+  fileMime?: string;
   status: StatusSurat;
   pembuat: string;
   dibuat: string;
-  alasanBatal?: string;
-  batalOleh?: string;
-  batalWaktu?: string;
 }
 
 export interface Klasifikasi {
@@ -38,7 +36,12 @@ export interface Klasifikasi {
 }
 
 export interface Pengaturan {
+  instansiInduk: string;
+  namaSekolah: string;
+  alamatSekolah: string;
+  kotaSurat: string;
+  namaKepsek: string;
+  nipKepsek: string;
   format: string;
   pad: number;
-  trial: boolean;
 }

@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
+  AlertTriangle,
   ArrowUpRight,
-  Ban,
   Check,
   Copy,
+  FileCheck2,
   Hash,
   Inbox,
   LayoutDashboard,
@@ -60,7 +61,7 @@ export default function DashboardPage() {
   const { suratList, klasifikasiList, pengaturan, getNextUrut } = useApp();
   const [initialLoading, setInitialLoading] = useState(true);
   const [tahun, setTahun] = useState("2026");
-  const [jenisPreview, setJenisPreview] = useState(klasifikasiList[0]?.kode ?? "SK");
+  const [jenisPreview, setJenisPreview] = useState(klasifikasiList[0]?.kode ?? "B");
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -74,29 +75,36 @@ export default function DashboardPage() {
     [suratList, tahunNum]
   );
 
-  const totalKeluar = suratTahun.filter(
-    (s) => s.arah === "keluar" && s.status === "Aktif"
+  const totalKeluarTerisi = suratTahun.filter(
+    (s) => s.arah === "keluar" && s.status === "Lengkap"
   ).length;
   const totalMasuk = suratTahun.filter((s) => s.arah === "masuk").length;
-  const totalBatal = suratTahun.filter((s) => s.status === "Batal").length;
 
+  const suratLengkapData = suratTahun.filter((s) => s.status === "Lengkap");
+  const sudahScanCount = suratLengkapData.filter((s) => Boolean(s.fileName)).length;
+  const belumScanCount = suratLengkapData.length - sudahScanCount;
+  const slotKosongList = suratTahun.filter((s) => s.status === "Belum Lengkap");
+
+  const nextUrut = getNextUrut(tahunNum);
   const nextNomor = useMemo(() => {
-    const today = `${tahun}-11-23`;
+    const sampleDate = tahunNum >= 2027 ? `${tahun}-01-02` : `${tahun}-11-23`;
     return formatNomorSurat(
       pengaturan.format,
       pengaturan.pad,
-      getNextUrut(tahunNum),
+      nextUrut,
       jenisPreview,
-      today
+      sampleDate
     );
-  }, [tahun, tahunNum, pengaturan, getNextUrut, jenisPreview]);
+  }, [tahun, tahunNum, pengaturan, nextUrut, jenisPreview]);
 
   const monthlyData = useMemo(() => {
     const base = Array.from({ length: 12 }, () => ({ keluar: 0, masuk: 0 }));
-    suratTahun.forEach((s) => {
-      const m = Number(s.tanggal.slice(5, 7)) - 1;
-      if (base[m]) base[m][s.arah]++;
-    });
+    suratTahun
+      .filter((s) => s.status === "Lengkap")
+      .forEach((s) => {
+        const m = Number(s.tanggal.slice(5, 7)) - 1;
+        if (base[m]) base[m][s.arah]++;
+      });
     return base;
   }, [suratTahun]);
 
@@ -105,7 +113,7 @@ export default function DashboardPage() {
   const perJenis = useMemo(() => {
     const counts: Record<string, number> = {};
     suratTahun
-      .filter((s) => s.arah === "keluar")
+      .filter((s) => s.arah === "keluar" && s.status === "Lengkap")
       .forEach((s) => {
         counts[s.jenis || "Lainnya"] = (counts[s.jenis || "Lainnya"] || 0) + 1;
       });
@@ -127,15 +135,16 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <PageHeader
         title={`Dashboard Arsip ${tahun}`}
-        description="Pantau volume surat masuk & keluar serta pratinjau nomor surat berikutnya."
+        description={`${pengaturan.namaSekolah} · Pantau penomoran, kelengkapan scan, dan kesiapan tahun baru.`}
         icon={LayoutDashboard}
         theme="indigo"
         actions={
           <Select value={tahun} onValueChange={setTahun}>
-            <SelectTrigger className="w-32 bg-white">
+            <SelectTrigger className="w-36 bg-white">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="2027">Tahun 2027 (Baru)</SelectItem>
               <SelectItem value="2026">Tahun 2026</SelectItem>
               <SelectItem value="2025">Tahun 2025</SelectItem>
             </SelectContent>
@@ -143,12 +152,64 @@ export default function DashboardPage() {
         }
       />
 
+      {/* Banner Peringatan Penertiban Administrasi */}
+      {(slotKosongList.length > 0 || belumScanCount > 0) && (
+        <div className="flex flex-col justify-between gap-3 rounded-xl border border-amber-300/80 bg-gradient-to-r from-amber-50 via-orange-50/70 to-white p-4 sm:flex-row sm:items-center">
+          <div className="flex items-start gap-3">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+              <AlertTriangle className="size-5" />
+            </div>
+            <div className="text-xs leading-relaxed text-amber-950">
+              <div className="text-sm font-semibold">Perhatian Penertiban Arsip {tahun}</div>
+              <p className="mt-0.5">
+                {slotKosongList.length > 0 && (
+                  <>
+                    Terdapat{" "}
+                    <b>
+                      {slotKosongList.length} nomor urut kosong (
+                      {slotKosongList
+                        .map((s) => String(s.urut).padStart(pengaturan.pad, "0"))
+                        .join(", ")}
+                      )
+                    </b>{" "}
+                    yang perlu dicari berkas fisiknya
+                    {belumScanCount > 0 ? ", serta " : ". "}
+                  </>
+                )}
+                {belumScanCount > 0 && (
+                  <>
+                    <b>{belumScanCount} surat</b> belum diunggah scan PDF-nya.
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 flex-wrap gap-2">
+            {slotKosongList.length > 0 && (
+              <Button size="sm" variant="outline" asChild className="bg-white">
+                <Link href="/surat-keluar?filter=slot">Lengkapi Nomor Kosong</Link>
+              </Button>
+            )}
+            {belumScanCount > 0 && (
+              <Button size="sm" variant="outline" asChild className="bg-white">
+                <Link href="/surat-keluar?filter=scan">Cek Belum Scan</Link>
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Stat Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
-          label="Surat Keluar Aktif"
-          value={totalKeluar}
-          hint="Nomor resmi diterbitkan"
+          label="Surat Keluar Terisi"
+          value={totalKeluarTerisi}
+          hint={
+            slotKosongList.length > 0
+              ? `+ ${slotKosongList.length} slot kosong sedang dicari`
+              : "Semua nomor berurutan rapi"
+          }
           icon={Send}
           theme="blue"
         />
@@ -160,11 +221,15 @@ export default function DashboardPage() {
           theme="emerald"
         />
         <StatCard
-          label="Nomor Dibatalkan"
-          value={totalBatal}
-          hint="Dikunci agar urutan tetap utuh"
-          icon={Ban}
-          theme="rose"
+          label="Kelengkapan Scan PDF"
+          value={`${sudahScanCount}/${suratLengkapData.length}`}
+          hint={
+            belumScanCount > 0
+              ? `${belumScanCount} surat belum ada file scan`
+              : "Seluruh arsip sudah di-scan"
+          }
+          icon={FileCheck2}
+          theme="amber"
         />
       </div>
 
@@ -172,16 +237,21 @@ export default function DashboardPage() {
       <Card className="border-indigo-100 bg-gradient-to-r from-indigo-50/80 via-violet-50/50 to-white">
         <CardContent className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div className="space-y-1.5">
-            <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-indigo-600 uppercase">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold tracking-wide text-indigo-600 uppercase">
               <Hash className="size-3.5" />
-              Nomor Surat Keluar Berikutnya
+              Nomor Surat Keluar Berikutnya ({tahun})
+              {nextUrut === 1 && (
+                <Badge variant="emerald" className="normal-case">
+                  Otomatis Reset Mulai 001
+                </Badge>
+              )}
             </div>
             <div className="font-mono text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
               {nextNomor}
             </div>
             <p className="text-xs text-slate-500">
-              Urutan ke-<b>{getNextUrut(tahunNum)}</b> di tahun {tahun}. Cari jenis surat untuk
-              simulasi kode.
+              Urutan ke-<b>{String(nextUrut).padStart(pengaturan.pad, "0")}</b> di tahun {tahun}.
+              Pilih tahun <b>2027</b> di kanan atas untuk melihat simulasi reset tahun baru.
             </p>
           </div>
 
@@ -217,13 +287,13 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Grafik Bulanan & Klasifikasi */}
+      {/* Grafik Bulanan & Klasifikasi (Urut Abjad A-Z) */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-base">Distribusi Surat per Bulan</CardTitle>
-              <CardDescription>Perbandingan surat keluar & masuk sepanjang {tahun}</CardDescription>
+              <CardDescription>Perbandingan surat keluar &amp; masuk sepanjang {tahun}</CardDescription>
             </div>
             <div className="flex items-center gap-3 text-xs text-slate-500">
               <span className="flex items-center gap-1.5">
@@ -279,10 +349,10 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Rekap Jenis Surat Keluar</CardTitle>
-            <CardDescription>Berdasarkan kode klasifikasi</CardDescription>
+            <CardTitle className="text-base">Rekap Klasifikasi (A–Z)</CardTitle>
+            <CardDescription>Terurut otomatis sesuai abjad kode</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2.5">
+          <CardContent className="max-h-60 space-y-2 overflow-y-auto">
             {klasifikasiList.map((k) => {
               const count = perJenis[k.kode] ?? 0;
               return (

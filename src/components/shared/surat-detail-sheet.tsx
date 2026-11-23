@@ -2,13 +2,15 @@
 
 import { toast } from "sonner";
 import {
-  Ban,
+  AlertTriangle,
   Calendar,
   Copy,
-  ExternalLink,
+  Eye,
   FileCheck2,
   Pencil,
   Send,
+  Trash2,
+  Upload,
   UserCheck,
 } from "lucide-react";
 import type { Surat } from "@/lib/types";
@@ -30,7 +32,8 @@ interface SuratDetailSheetProps {
   onOpenChange: (open: boolean) => void;
   canManage: boolean;
   onEdit: (surat: Surat) => void;
-  onCancel: (surat: Surat) => void;
+  onDelete: (surat: Surat) => void;
+  onPreviewDoc: (surat: Surat) => void;
 }
 
 export function SuratDetailSheet({
@@ -39,11 +42,13 @@ export function SuratDetailSheet({
   onOpenChange,
   canManage,
   onEdit,
-  onCancel,
+  onDelete,
+  onPreviewDoc,
 }: SuratDetailSheetProps) {
   if (!surat) return null;
 
   const isKeluar = surat.arah === "keluar";
+  const isSlotKosong = surat.status === "Belum Lengkap";
   const { tags: disposisiTags, cleanNote } = parseDisposisi(surat.catatan);
 
   function copyNomor() {
@@ -62,8 +67,12 @@ export function SuratDetailSheet({
             <Badge variant={isKeluar ? "blue" : "emerald"}>
               {isKeluar ? "Surat Keluar" : "Surat Masuk"}
             </Badge>
-            <Badge variant={surat.status === "Batal" ? "destructive" : "outline"}>
-              {surat.status}
+            <Badge variant={isSlotKosong ? "amber" : surat.fileName ? "emerald" : "outline"}>
+              {isSlotKosong
+                ? "Slot Kosong (Belum Lengkap)"
+                : surat.fileName
+                  ? "Lengkap + Scan"
+                  : "Belum Ada Scan"}
             </Badge>
             {surat.jenis && (
               <Badge variant="violet" className="font-mono">
@@ -73,11 +82,24 @@ export function SuratDetailSheet({
           </div>
           <SheetTitle className="mt-1 leading-snug">{surat.perihal}</SheetTitle>
           <SheetDescription>
-            Detail lengkap arsip surat & riwayat pencatatan Tata Usaha.
+            Detail lengkap arsip surat & kelengkapan berkas digital Tata Usaha.
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-5 space-y-5 text-sm">
+          {isSlotKosong && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-900">
+              <div className="flex items-center gap-1.5 font-semibold">
+                <AlertTriangle className="size-4 text-amber-600" />
+                Nomor Urut Belum Dilengkapi
+              </div>
+              <p className="mt-1 leading-relaxed">
+                Slot ini dibuat otomatis saat melompati nomor urut. Segera cari arsip fisiknya,
+                lengkapi data surat, dan unggah hasil scan PDF.
+              </p>
+            </div>
+          )}
+
           {/* Blok Nomor Surat */}
           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5">
             <div className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
@@ -87,7 +109,7 @@ export function SuratDetailSheet({
               <span className="font-mono text-sm font-bold text-slate-900 break-all">
                 {surat.nomor || "Belum bernomor"}
               </span>
-              {surat.nomor && (
+              {surat.nomor && !isSlotKosong && (
                 <Button variant="outline" size="sm" onClick={copyNomor}>
                   <Copy className="size-3.5" />
                   Salin
@@ -121,7 +143,7 @@ export function SuratDetailSheet({
             </div>
           </div>
 
-          {/* Disposisi (khusus Surat Masuk atau jika ada tag) */}
+          {/* Disposisi */}
           {disposisiTags.length > 0 && (
             <div className="space-y-2">
               <div className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
@@ -150,10 +172,10 @@ export function SuratDetailSheet({
           {/* Pratinjau File Lampiran */}
           <div className="space-y-2">
             <div className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-              Berkas Digital (Google Drive)
+              Berkas Scan Digital
             </div>
             {surat.fileName ? (
-              <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50/50 p-3.5">
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-indigo-100 bg-indigo-50/50 p-3.5">
                 <div className="flex min-w-0 items-center gap-2.5">
                   <FileCheck2 className="size-5 shrink-0 text-indigo-600" />
                   <div className="min-w-0">
@@ -161,67 +183,66 @@ export function SuratDetailSheet({
                       {surat.fileName}
                     </div>
                     <div className="text-[11px] text-slate-500">
-                      Tersimpan di folder arsip Drive (simulasi demo)
+                      Klik Pratinjau untuk baca &amp; unduh langsung di aplikasi
                     </div>
                   </div>
                 </div>
                 <Button
-                  variant="outline"
                   size="sm"
-                  onClick={() =>
-                    toast.info("Simulasi Pratinjau Drive", {
-                      description: `Pada mode produksi, tombol ini membuka berkas "${surat.fileName}" langsung dari Google Drive sekolah.`,
-                    })
-                  }
+                  className="bg-indigo-600 text-white hover:bg-indigo-700"
+                  onClick={() => onPreviewDoc(surat)}
                 >
-                  <ExternalLink className="size-3.5" />
-                  Buka
+                  <Eye className="size-3.5" />
+                  Pratinjau
                 </Button>
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
-                Belum ada scan PDF/gambar yang dilampirkan.
+              <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-amber-300 bg-amber-50/40 p-4 text-center">
+                <p className="text-xs font-medium text-amber-800">
+                  Belum ada berkas scan PDF/gambar yang diunggah.
+                </p>
+                {canManage && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      onOpenChange(false);
+                      onEdit(surat);
+                    }}
+                  >
+                    <Upload className="size-3.5" />
+                    Unggah Scan Sekarang
+                  </Button>
+                )}
               </div>
             )}
           </div>
 
-          {/* Riwayat Pembatalan bila Batal */}
-          {surat.status === "Batal" && (
-            <div className="rounded-xl border border-red-200 bg-red-50/70 p-3.5 text-xs text-red-800">
-              <div className="font-semibold">Nomor Dibatalkan & Dikunci</div>
-              <p className="mt-1">Alasan: {surat.alasanBatal || "-"}</p>
-              <p className="mt-0.5 text-red-600/80">
-                Oleh {surat.batalOleh || "-"} pada {surat.batalWaktu || "-"}
-              </p>
-            </div>
-          )}
-
           <Separator />
 
           {/* Tombol Aksi Cepat */}
-          {canManage && surat.status === "Aktif" && (
+          {canManage && (
             <div className="flex items-center gap-2 pt-1">
               <Button
-                variant="outline"
-                className="flex-1"
+                className="flex-1 bg-indigo-600 text-white hover:bg-indigo-700"
                 onClick={() => {
                   onOpenChange(false);
                   onEdit(surat);
                 }}
               >
                 <Pencil className="size-4" />
-                Ubah Data
+                {isSlotKosong ? "Lengkapi Nomor Ini" : "Ubah / Upload Scan"}
               </Button>
               <Button
-                variant="destructive"
-                className="flex-1"
+                variant="outline"
+                className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
                 onClick={() => {
                   onOpenChange(false);
-                  onCancel(surat);
+                  onDelete(surat);
                 }}
               >
-                <Ban className="size-4" />
-                Batalkan Nomor
+                <Trash2 className="size-4" />
+                Hapus
               </Button>
             </div>
           )}

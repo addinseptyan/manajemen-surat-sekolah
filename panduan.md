@@ -7,9 +7,9 @@ Dokumen ini adalah panduan operasional langkah demi langkah untuk **owner/develo
 
 ---
 
-## Panduan Cepat: Menerapkan Paket UX 2026 + Searchable Combobox + Skeleton via Pull Request #2
+## Panduan Cepat: Menerapkan Paket Penertiban Arsip, Draggable Format & In-App Preview via Pull Request #3
 
-Karena **PR #1 (`src/` + Next.js 16 + `shadcn/ui`) sudah di-merge ke `main`**, Anda tidak perlu menghapus folder lama apa pun lagi. Cukup ikuti 5 langkah bersih ini untuk membuat **Pull Request #2**:
+Karena pada update ini halaman `/impor` dilebur langsung ke dalam halaman **Surat Keluar & Surat Masuk**, jalankan 1 baris `git rm` di bawah agar folder `/impor` lama ikut bersih terhapus:
 
 1. **Sinkronkan `main` lokal terlebih dahulu:**
    ```bash
@@ -18,29 +18,33 @@ Karena **PR #1 (`src/` + Next.js 16 + `shadcn/ui`) sudah di-merge ke `main`**, A
    git pull origin main
    ```
 
-2. **Buat branch fitur baru untuk PR #2:**
+2. **Buat branch fitur baru untuk PR #3 & hapus folder `/impor` lama:**
    ```bash
-   git checkout -b feat/ux-2026-enhancements
+   git checkout -b feat/archive-gap-preview-and-builder
+   git rm -rf "src/app/(app)/impor"
    ```
 
 3. **Ekstrak & timpa isi `manajemen-surat-sekolah.zip` ke folder project Anda**
    *(Folder `.git`, `.vscode`, dan `.env.local` tetap aman).*
 
-4. **Install dependensi tambahan (`cmdk`, `@radix-ui/react-popover`, `sonner`) & verifikasi lokal:**
+4. **Verifikasi lokal sebelum commit:**
    ```bash
    npm install
    npm run typecheck
    npm run build
    npm run dev
    ```
-   *(Coba fitur baru di `http://localhost:3000`: ketik di Searchable Combobox jenis surat, klik baris tabel untuk Detail Panel kanan, tekan `Ctrl + K`, klik Cetak Agenda, dan perhatikan Skeleton + Toast Sonner).*
+   *(Cek fitur baru di `http://localhost:3000`:*
+   - *Dashboard: ganti tahun ke `2027` untuk melihat reset `001`, cek banner pengingat nomor kosong `005–006` & kelengkapan scan.*
+   - *Surat Keluar/Masuk: coba lompat nomor urut saat buat surat baru, klik lampiran PDF untuk **In-App Preview + Unduh**, serta tombol **Impor CSV** di header.*
+   - *Pengaturan: geser chip **Draggable & Editable Format Nomor**, lengkapi **Profil & Kepala Sekolah**, dan cek urutan **Klasifikasi A–Z**).*
 
-5. **Commit, push branch, dan buka Pull Request #2 di GitHub:**
+5. **Commit, push branch, dan buka Pull Request #3 di GitHub:**
    ```bash
    git status
    git add -A
-   git commit -m "feat: add searchable combobox, detail sheet, command palette, print agenda, and skeletons"
-   git push -u origin feat/ux-2026-enhancements
+   git commit -m "feat: add missing number gap slots, in-app doc preview, draggable format builder, and school profile settings"
+   git push -u origin feat/archive-gap-preview-and-builder
    ```
    - Buka `https://github.com/addinseptyan/manajemen-surat-sekolah` → klik **Compare & pull request**.
    - Tunggu **CI / build** centang hijau ✅ → klik **Squash and merge** → **Delete branch**.
@@ -48,7 +52,7 @@ Karena **PR #1 (`src/` + Next.js 16 + `shadcn/ui`) sudah di-merge ke `main`**, A
      ```bash
      git checkout main
      git pull origin main
-     git branch -d feat/ux-2026-enhancements
+     git branch -d feat/archive-gap-preview-and-builder
      ```
 
 ---
@@ -63,7 +67,7 @@ Repo Pribadi: github.com/addinseptyan/manajemen-surat-sekolah
    ├── Buka Pull Request (branch -> main)
    ├── GitHub Actions CI jalan otomatis (typecheck + build)
    ├── Squash & Merge PR ke main
-   └── Buat Tag Release (mis. v0.3.0 / v1.0.0) — DITUNDA SAMPAI SIAP RILIS KE SEKOLAH
+   └── Buat Tag Release (mis. v1.0.0) — DITUNDA SAMPAI SIAP RILIS KE SEKOLAH
           │
           ▼ GitHub Actions (mirror.yml) otomatis jalan saat tag di-push!
 Repo Sekolah: github.com/smknusantaralab/manajemen-surat-sekolah (branch main)
@@ -83,8 +87,6 @@ Vercel Sekolah (Production Hosting Resmi Sekolah)
 ---
 
 ## Bab 5 — Cara Merilis Update ke Repo Sekolah & Hosting Vercel *(Jalankan Nanti Saat Siap Rilis)*
-
-> **Kapan Bab 5 dijalankan?** Tunda dulu selama Anda masih menyempurnakan aplikasi atau menyambungkan backend Google Sheets & Drive API. Jalankan hanya ketika versi di `main` sudah siap dikirim resmi ke `smknusantaralab`.
 
 1. **Hubungkan Hosting Vercel Sekolah** ke repo **`smknusantaralab/manajemen-surat-sekolah`** (`main`) dan isi seluruh Environment Variables produksi (`USE_MOCK=false`, `GOOGLE_SPREADSHEET_ID`, `GOOGLE_DRIVE_FOLDER_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `SALT`).
 2. **Dorong Rilis Otomatis ke Repo Sekolah via Tag SemVer:**

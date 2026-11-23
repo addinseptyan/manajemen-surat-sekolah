@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import {
   INITIAL_KLASIFIKASI,
   INITIAL_PENGATURAN,
@@ -21,6 +21,13 @@ export interface SaveSuratInput {
   perihal: string;
   catatan: string;
   fileName?: string;
+  fileUrl?: string;
+  fileMime?: string;
+}
+
+export interface SaveSuratResult {
+  saved: Surat;
+  generatedGaps: number[];
 }
 
 interface AppContextValue {
@@ -31,15 +38,23 @@ interface AppContextValue {
   pengaturan: Pengaturan;
   login: (userId: string) => void;
   getNextUrut: (tahun: number) => number;
-  saveSurat: (input: SaveSuratInput) => Surat;
-  cancelSurat: (id: string, alasan: string) => void;
+  getMissingUrutBefore: (tahun: number, targetUrut: number) => number[];
+  saveSurat: (input: SaveSuratInput) => SaveSuratResult;
   deleteSurat: (id: string) => void;
-  importCsvSurat: (rows: Omit<Surat, "id" | "dibuat" | "pembuat" | "status" | "fileUrl">[]) => number;
+  importCsvSurat: (
+    rows: Omit<Surat, "id" | "dibuat" | "pembuat" | "status" | "fileUrl">[]
+  ) => number;
   savePengaturan: (next: Pengaturan) => void;
   saveKlasifikasi: (item: Klasifikasi, oldKode?: string) => { ok: boolean; error?: string };
   deleteKlasifikasi: (kode: string) => { ok: boolean; error?: string };
   saveUser: (input: { id?: string; nama: string; role: Role; aktif: boolean }) => void;
   toggleUserAktif: (id: string, aktif: boolean) => void;
+}
+
+function sortKlasifikasi(list: Klasifikasi[]): Klasifikasi[] {
+  return [...list].sort((a, b) =>
+    a.kode.localeCompare(b.kode, "id", { sensitivity: "base" })
+  );
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -48,9 +63,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [currentUserId, setCurrentUserId] = useState<string>(INITIAL_USERS[0].id);
   const [suratList, setSuratList] = useState<Surat[]>(INITIAL_SURAT);
-  const [klasifikasiList, setKlasifikasiList] = useState<Klasifikasi[]>(INITIAL_KLASIFIKASI);
+  const [rawKlasifikasi, setRawKlasifikasi] = useState<Klasifikasi[]>(INITIAL_KLASIFIKASI);
   const [pengaturan, setPengaturan] = useState<Pengaturan>(INITIAL_PENGATURAN);
 
+  const klasifikasiList = useMemo(() => sortKlasifikasi(rawKlasifikasi), [rawKlasifikasi]);
   const currentUser = users.find((u) => u.id === currentUserId) ?? users[0];
 
   function login(userId: string) {
@@ -65,21 +81,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return maxUrut + 1;
   }
 
-  function saveSurat(input: SaveSuratInput): Surat {
+  function getMissingUrutBefore(tahun: number, targetUrut: number): number[] {
+    if (targetUrut <= 1) return [];
+    const existing = new Set(
+      suratList
+        .filter((s) => s.arah === "keluar" && s.tahun === tahun && typeof s.urut === "number")
+        .map((s) => Number(s.urut))
+    );
+    const gaps: number[] = [];
+    for (let n = 1; n < targetUrut; n++) {
+      if (!existing.has(n)) gaps.push(n);
+    }
+    return gaps;
+  }
+
+  function saveSurat(input: SaveSuratInput): SaveSuratResult {
     const tahun = Number(input.tanggal.slice(0, 4)) || new Date().getFullYear();
     const today = new Date().toISOString().slice(0, 10);
 
+    // 1. Mode Ubah / Lengkapi Slot yang sudah ada
     if (input.id) {
       let updatedItem!: Surat;
       setSuratList((prev) =>
         prev.map((item) => {
           if (item.id !== input.id) return item;
+          const finalUrut =
+            item.arah === "keluar"
+              ? input.urutManual ?? (typeof item.urut === "number" ? item.urut : 1)
+              : "";
           const nextNomor =
-            item.arah === "keluar" && typeof item.urut === "number"
-              ? formatNomorSurat(pengaturan.format, pengaturan.pad, item.urut, input.jenis, input.tanggal)
+            item.arah === "keluar" && typeof finalUrut === "number"
+              ? input.nomorManual?.trim() ||
+                formatNomorSurat(
+                  pengaturan.format,
+                  pengaturan.pad,
+                  finalUrut,
+                  input.jenis,
+                  input.tanggal
+                )
               : input.nomorManual ?? item.nomor;
+
           updatedItem = {
             ...item,
+            urut: finalUrut,
             jenis: item.arah === "keluar" ? input.jenis : "",
             nomor: nextNomor,
             tahun,
@@ -88,27 +132,83 @@ export function AppProvider({ children }: { children: ReactNode }) {
             perihal: input.perihal,
             catatan: input.catatan,
             fileName: input.fileName ?? item.fileName,
-            fileUrl: input.fileName ? "#demo-file" : item.fileUrl,
+            fileUrl: input.fileUrl ?? (input.fileName ? item.fileUrl || "#demo-file" : item.fileUrl),
+            fileMime: input.fileMime ?? item.fileMime,
+            status: "Lengkap",
+            pembuat:
+              item.status === "Belum Lengkap" ? currentUser.nama : item.pembuat,
           };
           return updatedItem;
         })
       );
-      return updatedItem;
+      return { saved: updatedItem, generatedGaps: [] };
     }
 
-    const urut =
-      input.arah === "keluar" ? input.urutManual ?? getNextUrut(tahun) : "";
-    const nomor =
+    // 2. Mode Buat Baru
+    const targetUrut =
       input.arah === "keluar"
+        ? Math.max(1, input.urutManual ?? getNextUrut(tahun))
+        : ("" as const);
+
+    // Jika kebetulan user memasukkan nomor urut yang sudah ada sebagai slot "Belum Lengkap", timpa slot itu
+    if (input.arah === "keluar" && typeof targetUrut === "number") {
+      const existingGapSlot = suratList.find(
+        (s) =>
+          s.arah === "keluar" &&
+          s.tahun === tahun &&
+          s.urut === targetUrut &&
+          s.status === "Belum Lengkap"
+      );
+      if (existingGapSlot) {
+        return saveSurat({ ...input, id: existingGapSlot.id, urutManual: targetUrut });
+      }
+    }
+
+    const generatedGaps =
+      input.arah === "keluar" && typeof targetUrut === "number"
+        ? getMissingUrutBefore(tahun, targetUrut)
+        : [];
+
+    const gapItems: Surat[] = generatedGaps.map((n) => {
+      const padStr = String(n).padStart(pengaturan.pad, "0");
+      return {
+        id: `gap-${tahun}-${n}-${Date.now()}`,
+        arah: "keluar",
+        nomor: formatNomorSurat(pengaturan.format, pengaturan.pad, n, "---", input.tanggal),
+        urut: n,
+        tahun,
+        jenis: "",
+        tanggal: input.tanggal,
+        pihak: "— (Berkas fisik belum ditemukan)",
+        perihal: `Slot Nomor Urut ${padStr} Kosong — Harap cari arsip fisik & unggah scan`,
+        catatan: `Tergenerate otomatis saat lompat ke nomor ${String(targetUrut).padStart(
+          pengaturan.pad,
+          "0"
+        )}`,
+        fileUrl: "",
+        status: "Belum Lengkap",
+        pembuat: "Sistem Penertiban",
+        dibuat: today,
+      };
+    });
+
+    const nomor =
+      input.arah === "keluar" && typeof targetUrut === "number"
         ? input.nomorManual?.trim() ||
-          formatNomorSurat(pengaturan.format, pengaturan.pad, Number(urut), input.jenis, input.tanggal)
+          formatNomorSurat(
+            pengaturan.format,
+            pengaturan.pad,
+            targetUrut,
+            input.jenis,
+            input.tanggal
+          )
         : input.nomorManual?.trim() ?? "";
 
     const created: Surat = {
       id: `s-${Date.now()}`,
       arah: input.arah,
       nomor,
-      urut,
+      urut: targetUrut,
       tahun,
       jenis: input.arah === "keluar" ? input.jenis : "",
       tanggal: input.tanggal,
@@ -116,31 +216,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       perihal: input.perihal,
       catatan: input.catatan,
       fileName: input.fileName,
-      fileUrl: input.fileName ? "#demo-file" : "",
-      status: "Aktif",
+      fileUrl: input.fileUrl ?? (input.fileName ? "#demo-file" : ""),
+      fileMime: input.fileMime,
+      status: "Lengkap",
       pembuat: currentUser.nama,
       dibuat: today,
     };
 
-    setSuratList((prev) => [created, ...prev]);
-    return created;
-  }
-
-  function cancelSurat(id: string, alasan: string) {
-    const today = new Date().toISOString().slice(0, 10);
-    setSuratList((prev) =>
-      prev.map((s) =>
-        s.id === id
-          ? {
-              ...s,
-              status: "Batal",
-              alasanBatal: alasan,
-              batalOleh: currentUser.nama,
-              batalWaktu: today,
-            }
-          : s
-      )
-    );
+    setSuratList((prev) => [created, ...gapItems, ...prev]);
+    return { saved: created, generatedGaps };
   }
 
   function deleteSurat(id: string) {
@@ -155,7 +239,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ...r,
       id: `imp-${Date.now()}-${idx}`,
       fileUrl: r.fileName ? "#demo-file" : "",
-      status: "Aktif",
+      status: "Lengkap",
       pembuat: currentUser.nama,
       dibuat: today,
     }));
@@ -176,10 +260,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (oldKode && oldKode !== cleanKode) {
       const dipakai = suratList.some((s) => s.jenis === oldKode);
       if (dipakai) {
-        return { ok: false, error: "Kode sudah dipakai di surat keluar sehingga tidak boleh diubah." };
+        return {
+          ok: false,
+          error: "Kode sudah dipakai di surat keluar sehingga tidak boleh diubah.",
+        };
       }
     }
-    const conflict = klasifikasiList.some(
+    const conflict = rawKlasifikasi.some(
       (k) => k.kode.toLowerCase() === cleanKode.toLowerCase() && k.kode !== oldKode
     );
     if (conflict) {
@@ -187,11 +274,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     if (oldKode) {
-      setKlasifikasiList((prev) =>
+      setRawKlasifikasi((prev) =>
         prev.map((k) => (k.kode === oldKode ? { kode: cleanKode, nama: cleanNama } : k))
       );
     } else {
-      setKlasifikasiList((prev) => [...prev, { kode: cleanKode, nama: cleanNama }]);
+      setRawKlasifikasi((prev) => [...prev, { kode: cleanKode, nama: cleanNama }]);
     }
     return { ok: true };
   }
@@ -199,9 +286,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   function deleteKlasifikasi(kode: string) {
     const dipakai = suratList.some((s) => s.jenis === kode);
     if (dipakai) {
-      return { ok: false, error: "Jenis surat sudah dipakai pada arsip dan tidak dapat dihapus." };
+      return {
+        ok: false,
+        error: "Jenis surat sudah dipakai pada arsip dan tidak dapat dihapus.",
+      };
     }
-    setKlasifikasiList((prev) => prev.filter((k) => k.kode !== kode));
+    setRawKlasifikasi((prev) => prev.filter((k) => k.kode !== kode));
     return { ok: true };
   }
 
@@ -241,8 +331,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         pengaturan,
         login,
         getNextUrut,
+        getMissingUrutBefore,
         saveSurat,
-        cancelSurat,
         deleteSurat,
         importCsvSurat,
         savePengaturan,
