@@ -1,0 +1,34 @@
+name: Mirror ke Repo Sekolah
+
+# Berjalan otomatis hanya saat tag versi dibuat (mis. v0.1.0, v1.0.0)
+# Pastikan secret SCHOOL_REPO_SSH_KEY sudah diatur di repo pribadi (lihat panduan.md Bab 5).
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    # Hanya jalan di repo sumber (addinseptyan), tidak jalan ulang di repo sekolah
+    if: github.repository_owner == 'addinseptyan'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push mirror ke repo sekolah (main + tag)
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SCHOOL_REPO_SSH_KEY }}
+          SCHOOL_REPO_SSH: git@github.com:smknusantaralab/manajemen-surat-sekolah.git
+        run: |
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "SCHOOL_REPO_SSH_KEY belum diset. Lewati langkah mirror (lihat panduan.md)."
+            exit 0
+          fi
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git push --force "$SCHOOL_REPO_SSH" HEAD:refs/heads/main
+          git push --force "$SCHOOL_REPO_SSH" "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
