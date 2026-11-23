@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
-  CheckCircle2,
   Hash,
+  Loader2,
   Lock,
   Pencil,
   Plus,
@@ -14,8 +15,9 @@ import {
 import { useApp } from "@/context/app-context";
 import { THEMES } from "@/lib/theme";
 import type { Klasifikasi } from "@/lib/types";
-import { formatNomorSurat } from "@/lib/utils";
+import { formatNomorSurat, sleep } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
+import { TablePageSkeleton } from "@/components/shared/page-skeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,10 +59,13 @@ export default function PengaturanPage() {
     deleteKlasifikasi,
   } = useApp();
 
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [isSavingFormat, setIsSavingFormat] = useState(false);
+  const [isSavingKlas, setIsSavingKlas] = useState(false);
+
   const [format, setFormat] = useState(pengaturan.format);
   const [pad, setPad] = useState(String(pengaturan.pad));
   const [trial, setTrial] = useState(pengaturan.trial);
-  const [savedBanner, setSavedBanner] = useState("");
 
   // State Dialog Klasifikasi
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -68,6 +73,11 @@ export default function PengaturanPage() {
   const [kodeInput, setKodeInput] = useState("");
   const [namaInput, setNamaInput] = useState("");
   const [klasError, setKlasError] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => setInitialLoading(false), 220);
+    return () => clearTimeout(timer);
+  }, []);
 
   const samplePreview = useMemo(
     () => formatNomorSurat(format, Number(pad) || 3, 1, "SK", "2026-01-05"),
@@ -82,15 +92,20 @@ export default function PengaturanPage() {
     return m;
   }, [suratList]);
 
-  function handleSaveFormat(e: React.FormEvent) {
+  async function handleSaveFormat(e: React.FormEvent) {
     e.preventDefault();
+    if (isSavingFormat) return;
+    setIsSavingFormat(true);
+    await sleep(260);
     savePengaturan({
       format: format.trim() || "34.114/{urut}/{jenis}/SMKNST/{bulan}/{tahun}",
       pad: Math.max(1, Math.min(6, Number(pad) || 3)),
       trial,
     });
-    setSavedBanner("Pengaturan format nomor surat berhasil diperbarui.");
-    setTimeout(() => setSavedBanner(""), 2500);
+    setIsSavingFormat(false);
+    toast.success("Pengaturan format nomor diperbarui", {
+      description: `Contoh: ${samplePreview}`,
+    });
   }
 
   function openNewKlasifikasi() {
@@ -109,14 +124,26 @@ export default function PengaturanPage() {
     setDialogOpen(true);
   }
 
-  function handleSaveKlasifikasi(e: React.FormEvent) {
+  async function handleSaveKlasifikasi(e: React.FormEvent) {
     e.preventDefault();
+    if (isSavingKlas) return;
+    setIsSavingKlas(true);
+    await sleep(240);
     const res = saveKlasifikasi({ kode: kodeInput, nama: namaInput }, editingKode);
+    setIsSavingKlas(false);
     if (!res.ok) {
       setKlasError(res.error ?? "Gagal menyimpan klasifikasi.");
       return;
     }
     setDialogOpen(false);
+    toast.success(
+      editingKode ? "Klasifikasi surat diperbarui" : "Klasifikasi baru ditambahkan",
+      { description: `${kodeInput.trim()} — ${namaInput.trim()}` }
+    );
+  }
+
+  if (initialLoading) {
+    return <TablePageSkeleton />;
   }
 
   return (
@@ -127,13 +154,6 @@ export default function PengaturanPage() {
         icon={Settings}
         theme="violet"
       />
-
-      {savedBanner && (
-        <div className="flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-medium text-violet-900">
-          <CheckCircle2 className="size-4 text-violet-600" />
-          {savedBanner}
-        </div>
-      )}
 
       <Tabs defaultValue="format">
         <TabsList>
@@ -207,8 +227,13 @@ export default function PengaturanPage() {
                 </div>
 
                 <div className="flex justify-end">
-                  <Button type="submit" className={theme.buttonPrimary}>
-                    Simpan Pengaturan
+                  <Button
+                    type="submit"
+                    disabled={isSavingFormat}
+                    className={theme.buttonPrimary}
+                  >
+                    {isSavingFormat && <Loader2 className="size-4 animate-spin" />}
+                    {isSavingFormat ? "Menyimpan..." : "Simpan Pengaturan"}
                   </Button>
                 </div>
               </form>
@@ -278,7 +303,10 @@ export default function PengaturanPage() {
                             variant="ghost"
                             size="icon"
                             disabled={used > 0}
-                            onClick={() => deleteKlasifikasi(k.kode)}
+                            onClick={() => {
+                              const res = deleteKlasifikasi(k.kode);
+                              if (res.ok) toast.success(`Kode ${k.kode} dihapus`);
+                            }}
                             title={used > 0 ? "Sudah dipakai pada surat" : "Hapus jenis"}
                           >
                             <Trash2 className="size-4 text-red-500" />
@@ -313,7 +341,7 @@ export default function PengaturanPage() {
                 id="kode-klas"
                 required
                 disabled={Boolean(editingKode && (usageMap[editingKode] ?? 0) > 0)}
-                placeholder="Contoh: SPer / MOU"
+                placeholder="Contoh: SPer / 421.5"
                 value={kodeInput}
                 onChange={(e) => setKodeInput(e.target.value)}
                 className="font-mono"
@@ -336,11 +364,17 @@ export default function PengaturanPage() {
             </div>
             {klasError && <p className="text-xs font-medium text-red-600">{klasError}</p>}
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isSavingKlas}
+                onClick={() => setDialogOpen(false)}
+              >
                 Batal
               </Button>
-              <Button type="submit" className={theme.buttonPrimary}>
-                Simpan
+              <Button type="submit" disabled={isSavingKlas} className={theme.buttonPrimary}>
+                {isSavingKlas && <Loader2 className="size-4 animate-spin" />}
+                {isSavingKlas ? "Menyimpan..." : "Simpan"}
               </Button>
             </DialogFooter>
           </form>

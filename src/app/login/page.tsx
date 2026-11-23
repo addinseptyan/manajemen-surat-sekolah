@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, KeyRound, MailCheck, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
+import { ArrowRight, KeyRound, Loader2, MailCheck, ShieldCheck } from "lucide-react";
 import { useApp } from "@/context/app-context";
+import { sleep } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,20 +33,25 @@ export default function LoginPage() {
   const [selectedUserId, setSelectedUserId] = useState(activeUsers[0]?.id ?? "u1");
   const [pin, setPin] = useState("123456");
   const [error, setError] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (isLoggingIn) return;
     if (!pin.trim() || pin.trim().length < 4) {
       setError("Masukkan PIN minimal 4 digit (contoh demo: 123456).");
       return;
     }
+    setIsLoggingIn(true);
+    await sleep(260);
+    const chosen = activeUsers.find((u) => u.id === selectedUserId);
     login(selectedUserId);
+    toast.success(`Selamat datang, ${chosen?.nama ?? "Pengguna"}!`);
     router.push("/dashboard");
   }
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 p-4">
-      {/* Latar dekoratif lembut */}
       <div className="pointer-events-none absolute -top-32 left-1/2 size-[32rem] -translate-x-1/2 rounded-full bg-gradient-to-br from-indigo-200/50 via-blue-100/40 to-emerald-100/40 blur-3xl" />
 
       <div className="relative w-full max-w-md space-y-5">
@@ -116,11 +123,21 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
+                disabled={isLoggingIn}
                 className="w-full bg-indigo-600 text-white hover:bg-indigo-700"
                 size="lg"
               >
-                Masuk Aplikasi
-                <ArrowRight className="size-4" />
+                {isLoggingIn ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Memverifikasi PIN...
+                  </>
+                ) : (
+                  <>
+                    Masuk Aplikasi
+                    <ArrowRight className="size-4" />
+                  </>
+                )}
               </Button>
             </form>
 
