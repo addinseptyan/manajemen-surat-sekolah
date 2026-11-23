@@ -74,7 +74,7 @@ function NavMenuContent({
   onOpenCommand: () => void;
 }) {
   const pathname = usePathname();
-  const { currentUser } = useApp();
+  const { currentUser, pengaturan } = useApp();
 
   const operasionalItems = NAV_ITEMS.filter((i) => i.group === "operasional");
   const adminItems = NAV_ITEMS.filter((i) => i.group === "administrasi");
@@ -82,14 +82,14 @@ function NavMenuContent({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 px-2 py-1">
-        <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-sm shadow-indigo-500/25">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-sm shadow-indigo-500/25">
           <MailCheck className="size-5" />
         </div>
-        <div>
-          <div className="text-sm font-bold tracking-tight text-slate-900">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-bold tracking-tight text-slate-900">
             Surat Sekolah
           </div>
-          <div className="text-xs text-slate-500">SMK Nusantara Lab</div>
+          <div className="truncate text-xs text-slate-500">{pengaturan.namaSekolah}</div>
         </div>
       </div>
 
@@ -133,7 +133,7 @@ function NavMenuContent({
             Mode Demo Interaktif
           </div>
           <p className="mt-1 text-[11px] leading-relaxed text-amber-700/90">
-            Data contoh di memori browser. Klik baris tabel untuk panel detail.
+            Klik baris tabel untuk detail &amp; pratinjau berkas di dalam aplikasi.
           </p>
         </div>
 

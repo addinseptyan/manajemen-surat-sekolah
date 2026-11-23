@@ -1,5 +1,4 @@
 import {
-  FileUp,
   Inbox,
   LayoutDashboard,
   Send,
@@ -90,7 +89,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     href: "/dashboard",
     label: "Dashboard",
-    description: "Ringkasan statistik & nomor berikutnya",
+    description: "Ringkasan statistik, tunggakan arsip & nomor berikutnya",
     theme: "indigo",
     icon: LayoutDashboard,
     group: "operasional",
@@ -98,7 +97,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     href: "/surat-keluar",
     label: "Surat Keluar",
-    description: "Penomoran otomatis & arsip keluar",
+    description: "Penomoran otomatis, slot kosong & arsip keluar",
     theme: "blue",
     icon: Send,
     group: "operasional",
@@ -106,23 +105,15 @@ export const NAV_ITEMS: NavItem[] = [
   {
     href: "/surat-masuk",
     label: "Surat Masuk",
-    description: "Registrasi surat & disposisi",
+    description: "Registrasi surat masuk & disposisi",
     theme: "emerald",
     icon: Inbox,
     group: "operasional",
   },
   {
-    href: "/impor",
-    label: "Impor Arsip",
-    description: "Migrasi arsip lama manual atau CSV",
-    theme: "amber",
-    icon: FileUp,
-    group: "administrasi",
-  },
-  {
     href: "/pengaturan",
     label: "Pengaturan",
-    description: "Format nomor & kode klasifikasi",
+    description: "Profil sekolah, builder format nomor & klasifikasi",
     theme: "violet",
     icon: Settings,
     group: "administrasi",

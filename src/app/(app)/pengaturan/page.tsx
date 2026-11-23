@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
+  ArrowDownAZ,
+  Building2,
   Hash,
   Loader2,
   Lock,
@@ -16,6 +18,7 @@ import { useApp } from "@/context/app-context";
 import { THEMES } from "@/lib/theme";
 import type { Klasifikasi } from "@/lib/types";
 import { formatNomorSurat, sleep } from "@/lib/utils";
+import { FormatNomorBuilder } from "@/components/shared/format-nomor-builder";
 import { PageHeader } from "@/components/shared/page-header";
 import { TablePageSkeleton } from "@/components/shared/page-skeletons";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +40,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -60,12 +69,21 @@ export default function PengaturanPage() {
   } = useApp();
 
   const [initialLoading, setInitialLoading] = useState(true);
-  const [isSavingFormat, setIsSavingFormat] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isSavingKlas, setIsSavingKlas] = useState(false);
 
+  // State Profil & Format
+  const [instansiInduk, setInstansiInduk] = useState(pengaturan.instansiInduk);
+  const [namaSekolah, setNamaSekolah] = useState(pengaturan.namaSekolah);
+  const [alamatSekolah, setAlamatSekolah] = useState(pengaturan.alamatSekolah);
+  const [kotaSurat, setKotaSurat] = useState(pengaturan.kotaSurat);
+  const [namaKepsek, setNamaKepsek] = useState(pengaturan.namaKepsek);
+  const [nipKepsek, setNipKepsek] = useState(pengaturan.nipKepsek);
   const [format, setFormat] = useState(pengaturan.format);
   const [pad, setPad] = useState(String(pengaturan.pad));
-  const [trial, setTrial] = useState(pengaturan.trial);
+
+  // Urutan abjad klasifikasi (berdasarkan kode atau nama)
+  const [sortBy, setSortBy] = useState<"kode" | "nama">("kode");
 
   // State Dialog Klasifikasi
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -79,10 +97,23 @@ export default function PengaturanPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  const samplePreview = useMemo(
-    () => formatNomorSurat(format, Number(pad) || 3, 1, "SK", "2026-01-05"),
+  const samplePreview2026 = useMemo(
+    () => formatNomorSurat(format, Number(pad) || 3, 12, "SK", "2026-11-23"),
     [format, pad]
   );
+
+  const samplePreview2027 = useMemo(
+    () => formatNomorSurat(format, Number(pad) || 3, 1, "SK", "2027-01-02"),
+    [format, pad]
+  );
+
+  const sortedKlasifikasi = useMemo(() => {
+    return [...klasifikasiList].sort((a, b) =>
+      sortBy === "kode"
+        ? a.kode.localeCompare(b.kode, "id", { sensitivity: "base" })
+        : a.nama.localeCompare(b.nama, "id", { sensitivity: "base" })
+    );
+  }, [klasifikasiList, sortBy]);
 
   const usageMap = useMemo(() => {
     const m: Record<string, number> = {};
@@ -92,19 +123,24 @@ export default function PengaturanPage() {
     return m;
   }, [suratList]);
 
-  async function handleSaveFormat(e: React.FormEvent) {
+  async function handleSaveAllSettings(e: React.FormEvent) {
     e.preventDefault();
-    if (isSavingFormat) return;
-    setIsSavingFormat(true);
+    if (isSavingSettings) return;
+    setIsSavingSettings(true);
     await sleep(260);
     savePengaturan({
-      format: format.trim() || "34.114/{urut}/{jenis}/SMKNST/{bulan}/{tahun}",
+      instansiInduk: instansiInduk.trim(),
+      namaSekolah: namaSekolah.trim() || "SMK Nusantara Lab",
+      alamatSekolah: alamatSekolah.trim(),
+      kotaSurat: kotaSurat.trim() || "Purwoharjo",
+      namaKepsek: namaKepsek.trim(),
+      nipKepsek: nipKepsek.trim(),
+      format: format.trim() || "{urut}/34.114/{jenis}/SMKNST/{bulan}/{tahun}",
       pad: Math.max(1, Math.min(6, Number(pad) || 3)),
-      trial,
     });
-    setIsSavingFormat(false);
-    toast.success("Pengaturan format nomor diperbarui", {
-      description: `Contoh: ${samplePreview}`,
+    setIsSavingSettings(false);
+    toast.success("Pengaturan aplikasi berhasil disimpan", {
+      description: `${namaSekolah} · Format: ${samplePreview2027}`,
     });
   }
 
@@ -137,7 +173,7 @@ export default function PengaturanPage() {
     }
     setDialogOpen(false);
     toast.success(
-      editingKode ? "Klasifikasi surat diperbarui" : "Klasifikasi baru ditambahkan",
+      editingKode ? "Klasifikasi surat diperbarui" : "Klasifikasi baru ditambahkan & diurutkan A–Z",
       { description: `${kodeInput.trim()} — ${namaInput.trim()}` }
     );
   }
@@ -149,50 +185,48 @@ export default function PengaturanPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Pengaturan Sistem"
-        description="Atur pola penomoran surat keluar otomatis serta daftar kode klasifikasi resmi."
+        title="Pengaturan Aplikasi"
+        description="Kelola identitas sekolah, pejabat penandatangan, susunan format nomor surat (drag & edit), serta klasifikasi A–Z."
         icon={Settings}
         theme="violet"
       />
 
       <Tabs defaultValue="format">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="format">
             <Hash className="size-4" />
             Format Nomor Surat
           </TabsTrigger>
+          <TabsTrigger value="profil">
+            <Building2 className="size-4" />
+            Profil &amp; Kepala Sekolah
+          </TabsTrigger>
           <TabsTrigger value="klasifikasi">
             <Tags className="size-4" />
-            Jenis / Klasifikasi ({klasifikasiList.length})
+            Klasifikasi A–Z ({klasifikasiList.length})
           </TabsTrigger>
         </TabsList>
 
-        {/* Tab 1: Format Nomor */}
+        {/* Tab 1: Draggable & Editable Format Nomor */}
         <TabsContent value="format">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Pola Penomoran Surat Keluar</CardTitle>
+              <CardTitle className="text-base">
+                Penyusun Format Nomor Surat (Draggable &amp; Editable)
+              </CardTitle>
               <CardDescription>
-                Gunakan token <code className="font-mono">{"{urut}"}</code>,{" "}
-                <code className="font-mono">{"{jenis}"}</code>,{" "}
-                <code className="font-mono">{"{bulan}"}</code> (Romawi), dan{" "}
-                <code className="font-mono">{"{tahun}"}</code>.
+                Geser urutan blok variabel atau klik teks kode sekolah untuk mengeditnya secara
+                langsung. Nomor urut otomatis kembali ke <code className="font-mono">001</code> setiap
+                pergantian tahun baru.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSaveFormat} className="space-y-5">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-                  <div className="space-y-1.5 sm:col-span-3">
-                    <Label htmlFor="pola">Template Format</Label>
-                    <Input
-                      id="pola"
-                      value={format}
-                      onChange={(e) => setFormat(e.target.value)}
-                      className="font-mono"
-                    />
-                  </div>
+              <form onSubmit={handleSaveAllSettings} className="space-y-5">
+                <FormatNomorBuilder value={format} onChange={setFormat} />
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="pad">Digit Urut (Padding)</Label>
+                    <Label htmlFor="pad">Jumlah Digit Nomor Urut</Label>
                     <Input
                       id="pad"
                       type="number"
@@ -201,39 +235,39 @@ export default function PengaturanPage() {
                       value={pad}
                       onChange={(e) => setPad(e.target.value)}
                     />
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-4">
-                  <div className="text-[11px] font-semibold tracking-wide text-violet-700 uppercase">
-                    Hasil Pratinjau Langsung
-                  </div>
-                  <div className="mt-1 font-mono text-base font-bold text-violet-950">
-                    {samplePreview}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between rounded-xl border border-slate-200 p-4">
-                  <div className="space-y-0.5 pr-4">
-                    <div className="text-sm font-semibold text-slate-900">
-                      Mode Percobaan (Trial)
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      Jika aktif, Admin diizinkan menghapus baris surat secara permanen. Matikan
-                      saat sudah dipakai resmi agar surat hanya bisa dibatalkan, bukan dihapus.
+                    <p className="text-[11px] text-slate-400">
+                      Nilai 3 menghasilkan format <code className="font-mono">001</code>,{" "}
+                      <code className="font-mono">002</code>, dst.
                     </p>
                   </div>
-                  <Switch checked={trial} onCheckedChange={setTrial} />
+
+                  <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-3.5 sm:col-span-2">
+                    <div className="text-[11px] font-semibold tracking-wide text-violet-700 uppercase">
+                      Simulasi Hasil Format Nomor
+                    </div>
+                    <div className="mt-1.5 space-y-1 font-mono text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-sans text-xs text-slate-500">Tahun berjalan (2026):</span>
+                        <b className="text-violet-950">{samplePreview2026}</b>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-sans text-xs text-emerald-700">
+                          Awal tahun baru (2027):
+                        </span>
+                        <b className="text-emerald-800">{samplePreview2027}</b>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex justify-end">
                   <Button
                     type="submit"
-                    disabled={isSavingFormat}
+                    disabled={isSavingSettings}
                     className={theme.buttonPrimary}
                   >
-                    {isSavingFormat && <Loader2 className="size-4 animate-spin" />}
-                    {isSavingFormat ? "Menyimpan..." : "Simpan Pengaturan"}
+                    {isSavingSettings && <Loader2 className="size-4 animate-spin" />}
+                    {isSavingSettings ? "Menyimpan..." : "Simpan Format Nomor"}
                   </Button>
                 </div>
               </form>
@@ -241,22 +275,145 @@ export default function PengaturanPage() {
           </Card>
         </TabsContent>
 
-        {/* Tab 2: Klasifikasi */}
+        {/* Tab 2: Profil Sekolah & Kepala Sekolah */}
+        <TabsContent value="profil">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Identitas Sekolah &amp; Pejabat Penandatangan</CardTitle>
+              <CardDescription>
+                Digunakan otomatis pada Sidebar, Kop Cetak Buku Agenda, serta lembar pratinjau
+                dokumen.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSaveAllSettings} className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="instansi">Instansi Induk / Yayasan / Dinas</Label>
+                    <Input
+                      id="instansi"
+                      value={instansiInduk}
+                      onChange={(e) => setInstansiInduk(e.target.value)}
+                      placeholder="Contoh: Pemerintah Provinsi Jawa Timur · Dinas Pendidikan"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="nama-sekolah">Nama Sekolah</Label>
+                    <Input
+                      id="nama-sekolah"
+                      required
+                      value={namaSekolah}
+                      onChange={(e) => setNamaSekolah(e.target.value)}
+                      placeholder="Contoh: SMK Nusantara Lab"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label htmlFor="alamat-sekolah">Alamat Kop Surat</Label>
+                    <Input
+                      id="alamat-sekolah"
+                      value={alamatSekolah}
+                      onChange={(e) => setAlamatSekolah(e.target.value)}
+                      placeholder="Jalan, Kecamatan, Kabupaten/Kota"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="kota-surat">Kota Tanda Tangan</Label>
+                    <Input
+                      id="kota-surat"
+                      value={kotaSurat}
+                      onChange={(e) => setKotaSurat(e.target.value)}
+                      placeholder="Contoh: Purwoharjo"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="nama-kepsek">Nama Lengkap Kepala Sekolah</Label>
+                    <Input
+                      id="nama-kepsek"
+                      value={namaKepsek}
+                      onChange={(e) => setNamaKepsek(e.target.value)}
+                      placeholder="Nama beserta gelar"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="nip-kepsek">NIP / NIY Kepala Sekolah</Label>
+                    <Input
+                      id="nip-kepsek"
+                      value={nipKepsek}
+                      onChange={(e) => setNipKepsek(e.target.value)}
+                      placeholder="Contoh: 19720815 199802 1 003 atau -"
+                    />
+                  </div>
+                </div>
+
+                {/* Pratinjau Kop & TTD */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-xs text-slate-700">
+                  <div className="border-b border-slate-300 pb-2 text-center">
+                    <div className="text-[10px] font-semibold uppercase text-slate-500">
+                      {instansiInduk}
+                    </div>
+                    <div className="text-sm font-bold uppercase text-slate-900">{namaSekolah}</div>
+                    <div className="text-[11px] text-slate-500">{alamatSekolah}</div>
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <div className="text-center">
+                      <div>{kotaSurat}, 23 November 2026</div>
+                      <div className="font-semibold text-slate-900">
+                        Kepala {namaSekolah} — {namaKepsek}
+                      </div>
+                      <div className="text-[11px] text-slate-500">NIP. {nipKepsek}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    type="submit"
+                    disabled={isSavingSettings}
+                    className={theme.buttonPrimary}
+                  >
+                    {isSavingSettings && <Loader2 className="size-4 animate-spin" />}
+                    {isSavingSettings ? "Menyimpan..." : "Simpan Profil Sekolah"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab 3: Klasifikasi Terurut Abjad */}
         <TabsContent value="klasifikasi">
           <Card className="overflow-hidden py-0">
-            <div className="flex items-center justify-between border-b border-slate-100 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5">
               <div>
                 <h2 className="text-base font-semibold text-slate-900">
-                  Daftar Kode Klasifikasi Surat
+                  Daftar Kode &amp; Nama Klasifikasi Surat
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Kode yang sudah dipakai pada surat keluar terkunci agar riwayat nomor konsisten.
+                  Diurutkan otomatis berdasarkan abjad untuk memudahkan pencarian.
                 </p>
               </div>
-              <Button className={theme.buttonPrimary} size="sm" onClick={openNewKlasifikasi}>
-                <Plus className="size-4" />
-                Tambah Jenis
-              </Button>
+              <div className="flex items-center gap-2">
+                <Select value={sortBy} onValueChange={(v) => setSortBy(v as "kode" | "nama")}>
+                  <SelectTrigger className="h-8 w-44 text-xs">
+                    <ArrowDownAZ className="size-3.5 text-slate-500" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="kode">Urut Kode (A–Z)</SelectItem>
+                    <SelectItem value="nama">Urut Nama Surat (A–Z)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button className={theme.buttonPrimary} size="sm" onClick={openNewKlasifikasi}>
+                  <Plus className="size-4" />
+                  Tambah Jenis
+                </Button>
+              </div>
             </div>
 
             <Table>
@@ -269,7 +426,7 @@ export default function PengaturanPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {klasifikasiList.map((k) => {
+                {sortedKlasifikasi.map((k) => {
                   const used = usageMap[k.kode] ?? 0;
                   return (
                     <TableRow key={k.kode}>
@@ -331,7 +488,7 @@ export default function PengaturanPage() {
             </DialogTitle>
             <DialogDescription>
               Kode akan disisipkan pada token <code className="font-mono">{"{jenis}"}</code> nomor
-              surat keluar.
+              surat keluar dan otomatis terurut abjad.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSaveKlasifikasi} className="space-y-4">
