@@ -1,19 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
-  CheckCircle2,
   Download,
   FileSpreadsheet,
   FileUp,
+  Loader2,
   PenLine,
   UploadCloud,
 } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import { THEMES } from "@/lib/theme";
 import type { Arah } from "@/lib/types";
-import { downloadCsv } from "@/lib/utils";
+import { downloadCsv, sleep } from "@/lib/utils";
+import { KlasifikasiCombobox } from "@/components/shared/klasifikasi-combobox";
 import { PageHeader } from "@/components/shared/page-header";
+import { TablePageSkeleton } from "@/components/shared/page-skeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,13 +66,17 @@ const SAMPLE_ROWS = [
     "2025-02-12",
     "Cabang Dinas Pendidikan",
     "Undangan Rapat Koordinasi Kepala SMK",
-    "Dihadiri Kepala Sekolah",
+    "[Disposisi: Kepala TU] Dihadiri Kepala Sekolah",
   ],
 ];
 
 export default function ImporPage() {
   const theme = THEMES.amber;
   const { klasifikasiList, saveSurat, importCsvSurat } = useApp();
+
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isImportingCsv, setIsImportingCsv] = useState(false);
 
   // State form manual arsip lama
   const [arah, setArah] = useState<Arah>("keluar");
@@ -81,12 +88,18 @@ export default function ImporPage() {
   const [perihal, setPerihal] = useState("");
   const [catatan, setCatatan] = useState("");
   const [fileName, setFileName] = useState("");
-  const [feedback, setFeedback] = useState("");
 
-  function handleManualSubmit(e: React.FormEvent) {
+  useEffect(() => {
+    const timer = setTimeout(() => setInitialLoading(false), 220);
+    return () => clearTimeout(timer);
+  }, []);
+
+  async function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!pihak.trim() || !perihal.trim()) return;
-    saveSurat({
+    if (!pihak.trim() || !perihal.trim() || isSaving) return;
+    setIsSaving(true);
+    await sleep(280);
+    const created = saveSurat({
       arah,
       nomorManual: nomor.trim(),
       urutManual: arah === "keluar" ? Number(urut) || 1 : undefined,
@@ -97,24 +110,31 @@ export default function ImporPage() {
       catatan: catatan.trim(),
       fileName: fileName || undefined,
     });
+    setIsSaving(false);
     setPihak("");
     setPerihal("");
     setCatatan("");
     setNomor("");
     setFileName("");
-    setFeedback("1 data arsip lama berhasil ditambahkan ke daftar surat.");
+    toast.success("Arsip lama berhasil disimpan", {
+      description: created.nomor || created.perihal,
+    });
   }
 
   async function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || isImportingCsv) return;
+    setIsImportingCsv(true);
+    await sleep(320);
+
     const text = await file.text();
     const lines = text
       .split(/\r?\n/)
       .map((l) => l.trim())
       .filter(Boolean);
     if (lines.length < 2) {
-      setFeedback("File CSV kosong atau belum memiliki baris data.");
+      setIsImportingCsv(false);
+      toast.error("File CSV kosong atau belum memiliki baris data.");
       return;
     }
 
@@ -136,8 +156,15 @@ export default function ImporPage() {
     });
 
     const count = importCsvSurat(parsed);
-    setFeedback(`Berhasil mengimpor ${count} baris surat dari ${file.name}.`);
+    setIsImportingCsv(false);
+    toast.success(`Berhasil mengimpor ${count} baris surat`, {
+      description: `Sumber berkas: ${file.name}`,
+    });
     e.target.value = "";
+  }
+
+  if (initialLoading) {
+    return <TablePageSkeleton />;
   }
 
   return (
@@ -148,13 +175,6 @@ export default function ImporPage() {
         icon={FileUp}
         theme="amber"
       />
-
-      {feedback && (
-        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
-          <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
-          {feedback}
-        </div>
-      )}
 
       <Tabs defaultValue="csv">
         <TabsList>
@@ -183,7 +203,10 @@ export default function ImporPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => downloadCsv("template-kosong-surat.csv", CSV_HEADERS, [])}
+                  onClick={() => {
+                    downloadCsv("template-kosong-surat.csv", CSV_HEADERS, []);
+                    toast.info("Template CSV kosong diunduh");
+                  }}
                 >
                   <Download className="size-3.5" />
                   Template Kosong
@@ -191,9 +214,10 @@ export default function ImporPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() =>
-                    downloadCsv("contoh-impor-surat.csv", CSV_HEADERS, SAMPLE_ROWS)
-                  }
+                  onClick={() => {
+                    downloadCsv("contoh-impor-surat.csv", CSV_HEADERS, SAMPLE_ROWS);
+                    toast.info("Contoh CSV terisi diunduh");
+                  }}
                 >
                   <Download className="size-3.5" />
                   Contoh Terisi
@@ -227,10 +251,16 @@ export default function ImporPage() {
 
               <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/40 p-8 text-center transition-colors hover:bg-amber-50/80">
                 <div className="flex size-11 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-                  <UploadCloud className="size-5" />
+                  {isImportingCsv ? (
+                    <Loader2 className="size-5 animate-spin" />
+                  ) : (
+                    <UploadCloud className="size-5" />
+                  )}
                 </div>
                 <div className="text-sm font-semibold text-slate-800">
-                  Klik untuk memilih file CSV dari komputer
+                  {isImportingCsv
+                    ? "Memproses baris CSV..."
+                    : "Klik untuk memilih file CSV dari komputer"}
                 </div>
                 <p className="text-xs text-slate-500">
                   Format .csv UTF-8 · Langsung terimpor ke tabel Surat Keluar & Masuk (mode demo)
@@ -238,6 +268,7 @@ export default function ImporPage() {
                 <input
                   type="file"
                   accept=".csv,text/csv"
+                  disabled={isImportingCsv}
                   onChange={handleCsvFile}
                   className="hidden"
                 />
@@ -289,19 +320,12 @@ export default function ImporPage() {
 
                   {arah === "keluar" && (
                     <div className="space-y-1.5">
-                      <Label>Jenis Klasifikasi</Label>
-                      <Select value={jenis} onValueChange={setJenis}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {klasifikasiList.map((k) => (
-                            <SelectItem key={k.kode} value={k.kode}>
-                              {k.kode} — {k.nama}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label>Jenis Klasifikasi (Searchable)</Label>
+                      <KlasifikasiCombobox
+                        items={klasifikasiList}
+                        value={jenis}
+                        onValueChange={setJenis}
+                      />
                     </div>
                   )}
                 </div>
@@ -377,8 +401,9 @@ export default function ImporPage() {
                 </div>
 
                 <div className="flex justify-end">
-                  <Button type="submit" className={theme.buttonPrimary}>
-                    Simpan ke Arsip
+                  <Button type="submit" disabled={isSaving} className={theme.buttonPrimary}>
+                    {isSaving && <Loader2 className="size-4 animate-spin" />}
+                    {isSaving ? "Menyimpan..." : "Simpan ke Arsip"}
                   </Button>
                 </div>
               </form>

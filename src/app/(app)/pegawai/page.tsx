@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { KeyRound, Pencil, Plus, Shield, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { KeyRound, Loader2, Pencil, Plus, Shield, Users } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import { THEMES } from "@/lib/theme";
 import type { Role, User } from "@/lib/types";
-import { getInitials } from "@/lib/utils";
+import { getInitials, sleep } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
+import { TablePageSkeleton } from "@/components/shared/page-skeletons";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,12 +44,19 @@ export default function PegawaiPage() {
   const theme = THEMES.rose;
   const { users, currentUser, saveUser, toggleUserAktif } = useApp();
 
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [nama, setNama] = useState("");
   const [role, setRole] = useState<Role>("pegawai");
   const [pinBaru, setPinBaru] = useState("");
   const [aktif, setAktif] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setInitialLoading(false), 220);
+    return () => clearTimeout(timer);
+  }, []);
 
   function openCreate() {
     setEditingUser(null);
@@ -67,16 +76,27 @@ export default function PegawaiPage() {
     setDialogOpen(true);
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!nama.trim()) return;
+    if (!nama.trim() || isSaving) return;
+    setIsSaving(true);
+    await sleep(260);
     saveUser({
       id: editingUser?.id,
       nama: nama.trim(),
       role,
       aktif,
     });
+    setIsSaving(false);
     setDialogOpen(false);
+    toast.success(
+      editingUser ? "Data akun pegawai diperbarui" : "Pegawai baru berhasil ditambahkan",
+      { description: `${nama.trim()} (${role})` }
+    );
+  }
+
+  if (initialLoading) {
+    return <TablePageSkeleton />;
   }
 
   return (
@@ -142,7 +162,14 @@ export default function PegawaiPage() {
                       <Switch
                         checked={u.aktif}
                         disabled={isSelf}
-                        onCheckedChange={(checked) => toggleUserAktif(u.id, checked)}
+                        onCheckedChange={(checked) => {
+                          toggleUserAktif(u.id, checked);
+                          toast.info(
+                            checked
+                              ? `Akses ${u.nama} diaktifkan`
+                              : `Akses ${u.nama} dinonaktifkan`
+                          );
+                        }}
                       />
                       <span className="text-xs font-medium text-slate-600">
                         {u.aktif ? "Aktif" : "Nonaktif"}
@@ -233,11 +260,21 @@ export default function PegawaiPage() {
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isSaving}
+                onClick={() => setDialogOpen(false)}
+              >
                 Batal
               </Button>
-              <Button type="submit" className={theme.buttonPrimary}>
-                {editingUser ? "Simpan Perubahan" : "Tambah Pegawai"}
+              <Button type="submit" disabled={isSaving} className={theme.buttonPrimary}>
+                {isSaving && <Loader2 className="size-4 animate-spin" />}
+                {isSaving
+                  ? "Menyimpan..."
+                  : editingUser
+                    ? "Simpan Perubahan"
+                    : "Tambah Pegawai"}
               </Button>
             </DialogFooter>
           </form>

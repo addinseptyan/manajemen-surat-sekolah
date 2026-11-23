@@ -82,6 +82,7 @@ export interface NavItem {
   description: string;
   theme: ThemeKey;
   icon: LucideIcon;
+  group: "operasional" | "administrasi";
   adminOnly?: boolean;
 }
 
@@ -92,6 +93,7 @@ export const NAV_ITEMS: NavItem[] = [
     description: "Ringkasan statistik & nomor berikutnya",
     theme: "indigo",
     icon: LayoutDashboard,
+    group: "operasional",
   },
   {
     href: "/surat-keluar",
@@ -99,20 +101,23 @@ export const NAV_ITEMS: NavItem[] = [
     description: "Penomoran otomatis & arsip keluar",
     theme: "blue",
     icon: Send,
+    group: "operasional",
   },
   {
     href: "/surat-masuk",
     label: "Surat Masuk",
-    description: "Registrasi surat dari instansi luar",
+    description: "Registrasi surat & disposisi",
     theme: "emerald",
     icon: Inbox,
+    group: "operasional",
   },
   {
     href: "/impor",
-    label: "Impor Data",
+    label: "Impor Arsip",
     description: "Migrasi arsip lama manual atau CSV",
     theme: "amber",
     icon: FileUp,
+    group: "administrasi",
   },
   {
     href: "/pengaturan",
@@ -120,6 +125,7 @@ export const NAV_ITEMS: NavItem[] = [
     description: "Format nomor & kode klasifikasi",
     theme: "violet",
     icon: Settings,
+    group: "administrasi",
     adminOnly: true,
   },
   {
@@ -128,6 +134,7 @@ export const NAV_ITEMS: NavItem[] = [
     description: "Kelola akun & hak akses staf",
     theme: "rose",
     icon: Users,
+    group: "administrasi",
     adminOnly: true,
   },
 ];

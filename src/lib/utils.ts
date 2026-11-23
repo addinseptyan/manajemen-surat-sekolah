@@ -5,6 +5,10 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function sleep(ms = 260): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 const ROMAN_MONTHS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
 
 export function toRomanMonth(monthOneBased: number): string {
@@ -37,6 +41,43 @@ export function getInitials(nama: string): string {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
+}
+
+export const DISPOSISI_OPTIONS = [
+  "Waka Kurikulum",
+  "Waka Kesiswaan",
+  "Waka Humas / Hubin",
+  "Waka Sarpras",
+  "Kepala TU",
+  "Arsip",
+] as const;
+
+const DISPOSISI_REGEX = /^\[Disposisi:\s*([^\]]+)\]\s*/i;
+
+/**
+ * Mengekstrak daftar chip tujuan disposisi dari kolom `catatan` tanpa mengubah skema kolom Google Sheets.
+ * Format kompatibel: "[Disposisi: Waka Kurikulum, Kepala TU] Isi catatan..."
+ */
+export function parseDisposisi(catatan: string): {
+  tags: string[];
+  cleanNote: string;
+} {
+  if (!catatan) return { tags: [], cleanNote: "" };
+  const match = catatan.match(DISPOSISI_REGEX);
+  if (!match) return { tags: [], cleanNote: catatan };
+  const tags = match[1]
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const cleanNote = catatan.slice(match[0].length).trim();
+  return { tags, cleanNote };
+}
+
+export function composeDisposisi(tags: string[], cleanNote: string): string {
+  const unique = Array.from(new Set(tags.map((t) => t.trim()).filter(Boolean)));
+  const note = cleanNote.trim();
+  if (unique.length === 0) return note;
+  return `[Disposisi: ${unique.join(", ")}]${note ? ` ${note}` : ""}`;
 }
 
 export function downloadCsv(filename: string, headers: string[], rows: string[][]) {

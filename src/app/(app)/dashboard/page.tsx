@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   ArrowUpRight,
   Ban,
@@ -14,7 +15,9 @@ import {
 } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import { formatNomorSurat } from "@/lib/utils";
+import { KlasifikasiCombobox } from "@/components/shared/klasifikasi-combobox";
 import { PageHeader } from "@/components/shared/page-header";
+import { DashboardSkeleton } from "@/components/shared/page-skeletons";
 import { StatCard } from "@/components/shared/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,9 +58,15 @@ const BULAN_LABELS = [
 
 export default function DashboardPage() {
   const { suratList, klasifikasiList, pengaturan, getNextUrut } = useApp();
+  const [initialLoading, setInitialLoading] = useState(true);
   const [tahun, setTahun] = useState("2026");
   const [jenisPreview, setJenisPreview] = useState(klasifikasiList[0]?.kode ?? "SK");
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setInitialLoading(false), 240);
+    return () => clearTimeout(timer);
+  }, []);
 
   const tahunNum = Number(tahun);
   const suratTahun = useMemo(
@@ -106,7 +115,12 @@ export default function DashboardPage() {
   function handleCopyNomor() {
     navigator.clipboard.writeText(nextNomor);
     setCopied(true);
+    toast.success("Nomor simulasi disalin", { description: nextNomor });
     setTimeout(() => setCopied(false), 1800);
+  }
+
+  if (initialLoading) {
+    return <DashboardSkeleton />;
   }
 
   return (
@@ -166,24 +180,18 @@ export default function DashboardPage() {
               {nextNomor}
             </div>
             <p className="text-xs text-slate-500">
-              Urutan ke-<b>{getNextUrut(tahunNum)}</b> di tahun {tahun}. Pilih jenis surat untuk
-              melihat simulasi kode.
+              Urutan ke-<b>{getNextUrut(tahunNum)}</b> di tahun {tahun}. Cari jenis surat untuk
+              simulasi kode.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={jenisPreview} onValueChange={setJenisPreview}>
-              <SelectTrigger className="w-40 bg-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {klasifikasiList.map((k) => (
-                  <SelectItem key={k.kode} value={k.kode}>
-                    {k.kode} — {k.nama}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <KlasifikasiCombobox
+              items={klasifikasiList}
+              value={jenisPreview}
+              onValueChange={setJenisPreview}
+              className="w-52"
+            />
 
             <Button variant="outline" onClick={handleCopyNomor}>
               {copied ? (
@@ -200,7 +208,7 @@ export default function DashboardPage() {
             </Button>
 
             <Button asChild className="bg-indigo-600 text-white hover:bg-indigo-700">
-              <Link href="/surat-keluar">
+              <Link href="/surat-keluar?new=1">
                 Buat Surat
                 <ArrowUpRight className="size-4" />
               </Link>

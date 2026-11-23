@@ -7,53 +7,48 @@ Dokumen ini adalah panduan operasional langkah demi langkah untuk **owner/develo
 
 ---
 
-## Panduan Cepat: Menerapkan Update Struktur `src/` + Next.js 16 + `shadcn/ui` via Pull Request Pertama
+## Panduan Cepat: Menerapkan Paket UX 2026 + Searchable Combobox + Skeleton via Pull Request #2
 
-Karena **Bab 1 s/d Bab 4 sudah dijalankan** di repo `addinseptyan/manajemen-surat-sekolah`, **jangan** push langsung ke `main` dan **jangan** menghapus folder `.git` atau `.vscode` Anda. Terapkan ZIP revisi ini sebagai **Pull Request (PR) pertama** Anda dengan langkah bersih berikut:
+Karena **PR #1 (`src/` + Next.js 16 + `shadcn/ui`) sudah di-merge ke `main`**, Anda tidak perlu menghapus folder lama apa pun lagi. Cukup ikuti 5 langkah bersih ini untuk membuat **Pull Request #2**:
 
-1. **Masuk ke folder project lokal & pastikan di `main` terbaru:**
+1. **Sinkronkan `main` lokal terlebih dahulu:**
    ```bash
    cd ~/path/ke/manajemen-surat-sekolah
    git checkout main
    git pull origin main
    ```
 
-2. **Buat branch baru khusus refactor UI & struktur `src/`:**
+2. **Buat branch fitur baru untuk PR #2:**
    ```bash
-   git checkout -b refactor/nextjs16-shadcn-src
+   git checkout -b feat/ux-2026-enhancements
    ```
 
-3. **Hapus folder lama di luar `src/` agar tidak bentrok / menyisakan file yatim (*orphan*):**
-   ```bash
-   git rm -rf app components lib next.config.mjs tailwind.config.ts
-   ```
+3. **Ekstrak & timpa isi `manajemen-surat-sekolah.zip` ke folder project Anda**
+   *(Folder `.git`, `.vscode`, dan `.env.local` tetap aman).*
 
-4. **Salin seluruh isi hasil ekstrak `manajemen-surat-sekolah.zip` baru ke folder project Anda**
-   *(Timpa `package.json`, `tsconfig.json`, `.github/`, `README.md`, `panduan.md`, dll. Folder `.git`, `.vscode`, dan `.env.local` Anda tetap aman).*
-
-5. **Install dependensi baru & verifikasi lokal (wajib lolos sebelum commit):**
+4. **Install dependensi tambahan (`cmdk`, `@radix-ui/react-popover`, `sonner`) & verifikasi lokal:**
    ```bash
    npm install
    npm run typecheck
    npm run build
    npm run dev
    ```
-   *(Cek tampilan di `http://localhost:3000`, lalu tekan `Ctrl+C` jika sudah sesuai).*
+   *(Coba fitur baru di `http://localhost:3000`: ketik di Searchable Combobox jenis surat, klik baris tabel untuk Detail Panel kanan, tekan `Ctrl + K`, klik Cetak Agenda, dan perhatikan Skeleton + Toast Sonner).*
 
-6. **Commit, push branch baru, dan buat Pull Request di GitHub:**
+5. **Commit, push branch, dan buka Pull Request #2 di GitHub:**
    ```bash
    git status
    git add -A
-   git commit -m "refactor: upgrade to nextjs 16 with src directory and full shadcn ui"
-   git push -u origin refactor/nextjs16-shadcn-src
+   git commit -m "feat: add searchable combobox, detail sheet, command palette, print agenda, and skeletons"
+   git push -u origin feat/ux-2026-enhancements
    ```
    - Buka `https://github.com/addinseptyan/manajemen-surat-sekolah` → klik **Compare & pull request**.
-   - Isi ringkasan PR, tunggu **CI / build** centang hijau ✅, lalu klik **Squash and merge** dan **Delete branch**.
-   - Tarik kembali hasilnya di laptop:
+   - Tunggu **CI / build** centang hijau ✅ → klik **Squash and merge** → **Delete branch**.
+   - Tarik kembali ke `main` di laptop:
      ```bash
      git checkout main
      git pull origin main
-     git branch -d refactor/nextjs16-shadcn-src
+     git branch -d feat/ux-2026-enhancements
      ```
 
 ---
@@ -61,14 +56,14 @@ Karena **Bab 1 s/d Bab 4 sudah dijalankan** di repo `addinseptyan/manajemen-sura
 ## Arsitektur Alur Kerja (Model D — Auto Mirror via Release Tag)
 
 ```text
-Laptop Anda (branch feature/* atau refactor/*)
+Laptop Anda (branch feat/* atau fix/*)
    │
    ▼ git push
 Repo Pribadi: github.com/addinseptyan/manajemen-surat-sekolah
    ├── Buka Pull Request (branch -> main)
    ├── GitHub Actions CI jalan otomatis (typecheck + build)
    ├── Squash & Merge PR ke main
-   └── Buat Tag Release (mis. v0.2.0 / v1.0.0) — DITUNDA SAMPAI SIAP RILIS KE SEKOLAH
+   └── Buat Tag Release (mis. v0.3.0 / v1.0.0) — DITUNDA SAMPAI SIAP RILIS KE SEKOLAH
           │
           ▼ GitHub Actions (mirror.yml) otomatis jalan saat tag di-push!
 Repo Sekolah: github.com/smknusantaralab/manajemen-surat-sekolah (branch main)
@@ -79,83 +74,24 @@ Vercel Sekolah (Production Hosting Resmi Sekolah)
 
 ---
 
-## Bab 1 — Persiapan Awal Repo Pertama Kali *(Selesai Dijalankan)*
-
-1. Buat repositori publik `manajemen-surat-sekolah` di `addinseptyan`.
-2. Inisialisasi Git lokal pada branch `main` dan push fondasi awal ke `origin main`.
-
----
-
-## Bab 2 — Mengunci Branch `main` / Branch Protection *(Selesai Dijalankan)*
-
-Pada `addinseptyan/manajemen-surat-sekolah` → **Settings → Branches / Rulesets**:
-- Pola branch: `main`
-- Aktifkan **Require a pull request before merging** (Approvals = `0` untuk solo developer).
-- Aktifkan **Require status checks to pass before merging** → pilih job **`build`**.
-
----
-
-## Bab 3 — Siklus Harian Pengembangan (Setiap Ada Fitur / Perbaikan Baru)
-
-Setiap kali mengerjakan fitur berikutnya (mis. menyambungkan API Google Sheets/Drive), selalu ulangi 6 langkah standar ini:
-
-1. **Sinkronkan `main` lokal:**
-   ```bash
-   git checkout main
-   git pull origin main
-   ```
-2. **Buat branch baru sesuai tujuan:**
-   - `feature/nama-fitur` (contoh: `feature/google-sheets-auth`)
-   - `fix/nama-bug` (contoh: `fix/validasi-tanggal-surat`)
-   - `refactor/nama-perubahan`
-   - `docs/nama-dokumen`
-   ```bash
-   git checkout -b feature/nama-fitur
-   ```
-3. **Koding & cek kualitas lokal:**
-   ```bash
-   npm run typecheck
-   npm run build
-   ```
-4. **Commit (Conventional Commits) & push branch:**
-   ```bash
-   git add -A
-   git commit -m "feat: deskripsi singkat perubahan"
-   git push -u origin feature/nama-fitur
-   ```
-5. **Buka Pull Request di GitHub** lengkap dengan checklist & screenshot UI bila ada perubahan tampilan.
-6. **Tunggu CI hijau ✅ → Squash and merge → Hapus branch** di GitHub & lokal.
-
----
-
-## Bab 4 — Setup Auto-Mirror ke GitHub Sekolah *(Selesai Dijalankan)*
-
-Ringkasan konfigurasi yang sudah terpasang:
-- Repo tujuan: `https://github.com/smknusantaralab/manajemen-surat-sekolah`
-- **Public Key** dipasang di repo sekolah (**Settings → Deploy keys** dengan **Allow write access** ✅).
-- **Private Key** dipasang di repo pribadi `addinseptyan/manajemen-surat-sekolah` (**Settings → Secrets and variables → Actions** dengan nama **`SCHOOL_REPO_SSH_KEY`**).
+## Bab 1 s/d Bab 4 *(Sudah Selesai Dijalankan)*
+- **Bab 1:** Inisialisasi repo publik `addinseptyan/manajemen-surat-sekolah`.
+- **Bab 2:** Branch protection `main` (wajib Pull Request + wajib status check CI `build` lulus).
+- **Bab 3:** Siklus harian pengembangan selalu melalui branch baru (`feat/*`, `fix/*`, `refactor/*`, `docs/*`) → PR → Squash & Merge.
+- **Bab 4:** SSH Deploy Key (`Allow write access`) di `smknusantaralab/manajemen-surat-sekolah` + Secret `SCHOOL_REPO_SSH_KEY` di `addinseptyan/manajemen-surat-sekolah`.
 
 ---
 
 ## Bab 5 — Cara Merilis Update ke Repo Sekolah & Hosting Vercel *(Jalankan Nanti Saat Siap Rilis)*
 
-> **Kapan Bab 5 dijalankan?** Tunda dulu selama Anda masih menyempurnakan UI di lokal atau menyambungkan backend Google API. Jalankan Bab 5 hanya ketika versi di `main` repo pribadi sudah benar-benar siap dikirim ke `smknusantaralab` dan diakses staf sekolah.
+> **Kapan Bab 5 dijalankan?** Tunda dulu selama Anda masih menyempurnakan aplikasi atau menyambungkan backend Google Sheets & Drive API. Jalankan hanya ketika versi di `main` sudah siap dikirim resmi ke `smknusantaralab`.
 
-### 1. Hubungkan Hosting Vercel Sekolah
-- Login ke Vercel sekolah → **Add New Project** → pilih repo **`smknusantaralab/manajemen-surat-sekolah`** (branch `main`).
-- Masukkan seluruh **Environment Variables** produksi (`USE_MOCK=false`, `GOOGLE_SPREADSHEET_ID`, `GOOGLE_DRIVE_FOLDER_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `SALT`) di **Project Settings → Environment Variables** Vercel sekolah (lihat rincian di `INSTALASI.md`).
-- Untuk portfolio pribadi Anda, Anda juga boleh men-deploy `addinseptyan/manajemen-surat-sekolah` ke akun Vercel pribadi dengan `USE_MOCK=true` sebagai Live Demo publik.
-
-### 2. Dorong Rilis Otomatis ke Repo Sekolah via Tag SemVer
-Setiap kali kumpulan PR di `main` sudah siap dikirim ke sekolah, jalankan:
-
-```bash
-git checkout main
-git pull origin main
-git tag -a v0.2.0 -m "Release v0.2.0: UI modern Next.js 16 dan shadcn/ui"
-git push origin v0.2.0
-```
-
-Begitu tag `v*.*.*` di-push:
-1. Workflow `.github/workflows/mirror.yml` otomatis mendorong `main` + tag tersebut ke `smknusantaralab/manajemen-surat-sekolah`.
-2. Vercel sekolah otomatis men-deploy versi terbaru tersebut ke domain sekolah.
+1. **Hubungkan Hosting Vercel Sekolah** ke repo **`smknusantaralab/manajemen-surat-sekolah`** (`main`) dan isi seluruh Environment Variables produksi (`USE_MOCK=false`, `GOOGLE_SPREADSHEET_ID`, `GOOGLE_DRIVE_FOLDER_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `SALT`).
+2. **Dorong Rilis Otomatis ke Repo Sekolah via Tag SemVer:**
+   ```bash
+   git checkout main
+   git pull origin main
+   git tag -a v1.0.0 -m "Release v1.0.0: Rilis perdana manajemen surat sekolah"
+   git push origin v1.0.0
+   ```
+   GitHub Actions otomatis me-mirror `main` + tag ke repo sekolah dan Vercel sekolah otomatis melakukan deploy terbaru.
