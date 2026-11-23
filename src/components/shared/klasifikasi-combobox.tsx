@@ -57,7 +57,7 @@ export function KlasifikasiCombobox({
           role="combobox"
           aria-expanded={open}
           className={cn(
-            "w-full justify-between bg-white px-3 font-normal text-slate-800 hover:bg-slate-50",
+            "bg-card text-foreground hover:bg-muted/60 w-full justify-between px-3 font-normal",
             className
           )}
         >
@@ -81,7 +81,7 @@ export function KlasifikasiCombobox({
                 >
                   <Check
                     className={cn(
-                      "size-4 text-indigo-600",
+                      "text-primary size-4",
                       value === "ALL" ? "opacity-100" : "opacity-0"
                     )}
                   />
@@ -100,14 +100,14 @@ export function KlasifikasiCombobox({
                 >
                   <Check
                     className={cn(
-                      "size-4 text-indigo-600",
+                      "text-primary size-4",
                       value === item.kode ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  <span className="w-12 shrink-0 font-mono text-xs font-bold text-indigo-700">
+                  <span className="w-12 shrink-0 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
                     {item.kode}
                   </span>
-                  <span className="truncate text-slate-700">{item.nama}</span>
+                  <span className="text-foreground/85 truncate">{item.nama}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Download, FileCheck2, ShieldCheck } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import type { Surat } from "@/lib/types";
+import { formatTanggalIndo } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +34,7 @@ export function DocumentPreviewDialog({
   const isImage =
     surat.fileMime?.startsWith("image/") ||
     /\.(png|jpe?g|webp|gif)$/i.test(surat.fileName ?? "");
+  const tanggalIndo = formatTanggalIndo(surat.tanggal);
 
   function handleDownload() {
     if (!surat) return;
@@ -46,7 +48,6 @@ export function DocumentPreviewDialog({
       return;
     }
 
-    // Untuk berkas contoh mode demo, buat dokumen pratinjau HTML rapi yang langsung bisa dibuka/dicetak
     const htmlDoc = `<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -67,14 +68,14 @@ export function DocumentPreviewDialog({
   </div>
   <div class="meta">
     <div><b>Nomor:</b> ${surat.nomor || "-"}</div>
-    <div><b>Tanggal:</b> ${surat.tanggal}</div>
+    <div><b>Tanggal:</b> ${tanggalIndo}</div>
     <div><b>${surat.arah === "keluar" ? "Kepada Yth" : "Pengirim"}:</b> ${surat.pihak}</div>
     <div><b>Perihal:</b> ${surat.perihal}</div>
   </div>
   <p>Dokumen ini adalah berkas contoh mode demo untuk arsip <b>${surat.fileName || "Surat"}</b>.</p>
   <p>${surat.catatan || ""}</p>
   <div class="ttd">
-    <div>${pengaturan.kotaSurat}, ${surat.tanggal}</div>
+    <div>${pengaturan.kotaSurat}, ${tanggalIndo}</div>
     <div>Kepala ${pengaturan.namaSekolah}</div>
     <br/><br/><br/>
     <div><b><u>${pengaturan.namaKepsek}</u></b></div>
@@ -101,9 +102,9 @@ export function DocumentPreviewDialog({
       <DialogContent className="flex max-h-[90vh] flex-col gap-3 sm:max-w-3xl">
         <DialogHeader className="pr-8">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <FileCheck2 className="size-5 text-indigo-600" />
-              <DialogTitle className="text-base">
+            <div className="flex min-w-0 items-center gap-2">
+              <FileCheck2 className="size-5 shrink-0 text-indigo-600 dark:text-indigo-400" />
+              <DialogTitle className="truncate text-base">
                 {surat.fileName || "Pratinjau Dokumen Surat"}
               </DialogTitle>
               <Badge variant="blue" className="font-mono text-[11px]">
@@ -111,19 +112,23 @@ export function DocumentPreviewDialog({
               </Badge>
             </div>
 
-            <Button size="sm" onClick={handleDownload} className="bg-indigo-600 text-white hover:bg-indigo-700">
+            <Button
+              size="sm"
+              onClick={handleDownload}
+              className="bg-indigo-600 text-white hover:bg-indigo-700"
+            >
               <Download className="size-4" />
               Unduh Dokumen
             </Button>
           </div>
           <DialogDescription className="flex items-center gap-1.5 text-xs">
-            <ShieldCheck className="size-3.5 text-emerald-600" />
+            <ShieldCheck className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
             Pratinjau langsung di dalam aplikasi — bebas masalah &ldquo;Request Access&rdquo; Google Drive.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Area Viewer Dokumen */}
-        <div className="min-h-[420px] flex-1 overflow-auto rounded-xl border border-slate-200 bg-slate-100 p-4">
+        {/* Area Viewer Dokumen (kertas dokumen tetap putih bersih agar otentik dibaca) */}
+        <div className="min-h-[380px] flex-1 overflow-auto rounded-xl border border-border bg-slate-100 p-3 sm:p-5 dark:bg-slate-900/80">
           {isRealBlob && surat.fileUrl ? (
             isImage ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -140,8 +145,7 @@ export function DocumentPreviewDialog({
               />
             )
           ) : (
-            /* Lembar Pratinjau Dokumen Contoh (Demo) */
-            <div className="mx-auto max-w-xl rounded-lg border border-slate-200 bg-white p-8 text-slate-900 shadow-md">
+            <div className="mx-auto max-w-xl rounded-lg border border-slate-200 bg-white p-5 text-slate-900 shadow-md sm:p-8">
               <div className="border-b-2 border-slate-900 pb-3 text-center">
                 <div className="text-[11px] font-semibold tracking-wide text-slate-600 uppercase">
                   {pengaturan.instansiInduk}
@@ -154,7 +158,7 @@ export function DocumentPreviewDialog({
                 <span className="text-slate-500">Nomor</span>
                 <span className="font-mono font-semibold">: {surat.nomor || "-"}</span>
                 <span className="text-slate-500">Tanggal</span>
-                <span>: {surat.tanggal}</span>
+                <span>: {tanggalIndo}</span>
                 <span className="text-slate-500">
                   {surat.arah === "keluar" ? "Kepada Yth." : "Dari"}
                 </span>
@@ -166,7 +170,7 @@ export function DocumentPreviewDialog({
               <div className="mt-5 space-y-2.5 text-xs leading-relaxed text-slate-700">
                 <p>Dengan hormat,</p>
                 <p>
-                   Ini adalah tampilan simulasi berkas scan <b>{surat.fileName}</b> di dalam
+                  Ini adalah tampilan simulasi berkas scan <b>{surat.fileName}</b> di dalam
                   aplikasi. Jika Anda memilih file PDF/gambar asli dari komputer saat menambah atau
                   mengubah surat, file asli tersebut akan langsung tampil utuh di jendela ini.
                 </p>
@@ -178,9 +182,9 @@ export function DocumentPreviewDialog({
               </div>
 
               <div className="mt-10 flex justify-end text-xs">
-                <div className="w-52 text-center">
+                <div className="w-56 text-center">
                   <div>
-                    {pengaturan.kotaSurat}, {surat.tanggal}
+                    {pengaturan.kotaSurat}, {tanggalIndo}
                   </div>
                   <div className="font-medium">Kepala {pengaturan.namaSekolah}</div>
                   <div className="h-12" />

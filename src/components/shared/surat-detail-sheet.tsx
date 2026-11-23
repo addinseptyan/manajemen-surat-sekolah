@@ -14,7 +14,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import type { Surat } from "@/lib/types";
-import { parseDisposisi } from "@/lib/utils";
+import { formatTanggalIndo, parseDisposisi } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -82,15 +82,15 @@ export function SuratDetailSheet({
           </div>
           <SheetTitle className="mt-1 leading-snug">{surat.perihal}</SheetTitle>
           <SheetDescription>
-            Detail lengkap arsip surat & kelengkapan berkas digital Tata Usaha.
+            Detail lengkap arsip surat &amp; kelengkapan berkas digital Tata Usaha.
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-5 space-y-5 text-sm">
           {isSlotKosong && (
-            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-900">
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/50 dark:text-amber-200">
               <div className="flex items-center gap-1.5 font-semibold">
-                <AlertTriangle className="size-4 text-amber-600" />
+                <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" />
                 Nomor Urut Belum Dilengkapi
               </div>
               <p className="mt-1 leading-relaxed">
@@ -101,12 +101,12 @@ export function SuratDetailSheet({
           )}
 
           {/* Blok Nomor Surat */}
-          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5">
-            <div className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
+          <div className="bg-muted/60 rounded-xl border border-border p-3.5">
+            <div className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">
               Nomor Resmi Surat
             </div>
             <div className="mt-1 flex items-center justify-between gap-2">
-              <span className="font-mono text-sm font-bold text-slate-900 break-all">
+              <span className="text-foreground font-mono text-sm font-bold break-all">
                 {surat.nomor || "Belum bernomor"}
               </span>
               {surat.nomor && !isSlotKosong && (
@@ -119,34 +119,36 @@ export function SuratDetailSheet({
           </div>
 
           {/* Metadata Utama */}
-          <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-100 p-3.5">
+          <div className="grid grid-cols-2 gap-3 rounded-xl border border-border p-3.5">
             <div>
-              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+              <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
                 <Calendar className="size-3.5" />
                 Tanggal Surat
               </div>
-              <div className="mt-1 font-medium text-slate-800">{surat.tanggal}</div>
+              <div className="text-foreground mt-1 font-medium">
+                {formatTanggalIndo(surat.tanggal)}
+              </div>
             </div>
             <div>
-              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+              <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
                 <UserCheck className="size-3.5" />
                 Dicatat Oleh
               </div>
-              <div className="mt-1 font-medium text-slate-800">{surat.pembuat}</div>
+              <div className="text-foreground mt-1 font-medium">{surat.pembuat}</div>
             </div>
             <div className="col-span-2 pt-1">
-              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+              <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
                 <Send className="size-3.5" />
                 {isKeluar ? "Tujuan Penerima" : "Instansi Pengirim"}
               </div>
-              <div className="mt-1 font-medium text-slate-900">{surat.pihak}</div>
+              <div className="text-foreground mt-1 font-medium">{surat.pihak}</div>
             </div>
           </div>
 
           {/* Disposisi */}
           {disposisiTags.length > 0 && (
             <div className="space-y-2">
-              <div className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
                 Tujuan Disposisi
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -161,29 +163,29 @@ export function SuratDetailSheet({
 
           {/* Catatan */}
           <div className="space-y-1.5">
-            <div className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
               Catatan / Instruksi
             </div>
-            <p className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 text-slate-700">
+            <p className="bg-muted/40 text-foreground/90 rounded-xl border border-border p-3">
               {cleanNote || "Tidak ada catatan tambahan."}
             </p>
           </div>
 
           {/* Pratinjau File Lampiran */}
           <div className="space-y-2">
-            <div className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
               Berkas Scan Digital
             </div>
             {surat.fileName ? (
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-indigo-100 bg-indigo-50/50 p-3.5">
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-indigo-200/70 bg-indigo-50/50 p-3.5 dark:border-indigo-900/60 dark:bg-indigo-950/35">
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <FileCheck2 className="size-5 shrink-0 text-indigo-600" />
+                  <FileCheck2 className="size-5 shrink-0 text-indigo-600 dark:text-indigo-400" />
                   <div className="min-w-0">
-                    <div className="truncate text-xs font-semibold text-slate-900">
+                    <div className="text-foreground truncate text-xs font-semibold">
                       {surat.fileName}
                     </div>
-                    <div className="text-[11px] text-slate-500">
-                      Klik Pratinjau untuk baca &amp; unduh langsung di aplikasi
+                    <div className="text-muted-foreground text-[11px]">
+                      Baca &amp; unduh langsung di dalam aplikasi
                     </div>
                   </div>
                 </div>
@@ -197,8 +199,8 @@ export function SuratDetailSheet({
                 </Button>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-amber-300 bg-amber-50/40 p-4 text-center">
-                <p className="text-xs font-medium text-amber-800">
+              <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-amber-300 bg-amber-50/40 p-4 text-center dark:border-amber-800/70 dark:bg-amber-950/30">
+                <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
                   Belum ada berkas scan PDF/gambar yang diunggah.
                 </p>
                 {canManage && (
@@ -220,7 +222,6 @@ export function SuratDetailSheet({
 
           <Separator />
 
-          {/* Tombol Aksi Cepat */}
           {canManage && (
             <div className="flex items-center gap-2 pt-1">
               <Button
@@ -235,7 +236,7 @@ export function SuratDetailSheet({
               </Button>
               <Button
                 variant="outline"
-                className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900/60 dark:text-red-400 dark:hover:bg-red-950/50"
                 onClick={() => {
                   onOpenChange(false);
                   onDelete(surat);

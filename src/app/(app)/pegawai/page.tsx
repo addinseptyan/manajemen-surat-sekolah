@@ -6,7 +6,7 @@ import { KeyRound, Loader2, Pencil, Plus, Shield, Users } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import { THEMES } from "@/lib/theme";
 import type { Role, User } from "@/lib/types";
-import { getInitials, sleep } from "@/lib/utils";
+import { cn, formatTanggalIndo, getInitials, sleep } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import { TablePageSkeleton } from "@/components/shared/page-skeletons";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -43,6 +43,7 @@ import {
 export default function PegawaiPage() {
   const theme = THEMES.rose;
   const { users, currentUser, saveUser, toggleUserAktif } = useApp();
+  const isAdmin = currentUser.role === "admin";
 
   const [initialLoading, setInitialLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -107,86 +108,163 @@ export default function PegawaiPage() {
         icon={Users}
         theme="rose"
         actions={
-          <Button className={theme.buttonPrimary} onClick={openCreate}>
-            <Plus className="size-4" />
-            Tambah Pegawai
-          </Button>
+          isAdmin ? (
+            <Button className={cn("w-full sm:w-auto", theme.buttonPrimary)} onClick={openCreate}>
+              <Plus className="size-4" />
+              Tambah Pegawai
+            </Button>
+          ) : undefined
         }
       />
 
       <Card className="overflow-hidden py-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nama Pegawai</TableHead>
-              <TableHead className="w-36">Peran</TableHead>
-              <TableHead className="w-36">Terdaftar</TableHead>
-              <TableHead className="w-36">Status Akses</TableHead>
-              <TableHead className="w-24 text-right">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.map((u) => {
-              const isSelf = u.id === currentUser.id;
-              return (
-                <TableRow key={u.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar className="size-9">
-                        <AvatarFallback className="bg-rose-100 text-rose-700">
-                          {getInitials(u.nama)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-medium text-slate-900">
-                          {u.nama}
-                          {isSelf && (
-                            <span className="ml-2 text-xs font-normal text-slate-400">
-                              (Anda)
-                            </span>
-                          )}
+        {/* TAMPILAN DESKTOP */}
+        <div className="hidden md:block">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nama Pegawai</TableHead>
+                <TableHead className="w-36">Peran</TableHead>
+                <TableHead className="w-44">Terdaftar</TableHead>
+                <TableHead className="w-36">Status Akses</TableHead>
+                <TableHead className="w-24 text-right">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((u) => {
+                const isSelf = u.id === currentUser.id;
+                return (
+                  <TableRow key={u.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="size-9">
+                          <AvatarFallback className="bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300">
+                            {getInitials(u.nama)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="text-foreground font-medium">
+                            {u.nama}
+                            {isSelf && (
+                              <span className="text-muted-foreground ml-2 text-xs font-normal">
+                                (Anda)
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-muted-foreground text-xs">
+                            PIN terenkripsi SHA-256
+                          </div>
                         </div>
-                        <div className="text-xs text-slate-400">PIN terenkripsi SHA-256</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={u.role === "admin" ? "violet" : "blue"}>
+                        {u.role === "admin" && <Shield className="size-3" />}
+                        {u.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs">
+                      {formatTanggalIndo(u.dibuat)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={u.aktif}
+                          disabled={isSelf || !isAdmin}
+                          onCheckedChange={(checked) => {
+                            toggleUserAktif(u.id, checked);
+                            toast.info(
+                              checked
+                                ? `Akses ${u.nama} diaktifkan`
+                                : `Akses ${u.nama} dinonaktifkan`
+                            );
+                          }}
+                        />
+                        <span className="text-muted-foreground text-xs font-medium">
+                          {u.aktif ? "Aktif" : "Nonaktif"}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={!isAdmin}
+                        onClick={() => openEdit(u)}
+                      >
+                        <Pencil className="size-3.5" />
+                        Ubah
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* TAMPILAN MOBILE: Kartu Pegawai */}
+        <div className="divide-y divide-border md:hidden">
+          {users.map((u) => {
+            const isSelf = u.id === currentUser.id;
+            return (
+              <div key={u.id} className="space-y-3 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Avatar className="size-9 shrink-0">
+                      <AvatarFallback className="bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300">
+                        {getInitials(u.nama)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <div className="text-foreground truncate text-sm font-semibold">
+                        {u.nama}
+                        {isSelf && (
+                          <span className="text-muted-foreground ml-1.5 text-xs font-normal">
+                            (Anda)
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-muted-foreground text-xs">
+                        Terdaftar {formatTanggalIndo(u.dibuat)}
                       </div>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={u.role === "admin" ? "violet" : "blue"}>
-                      {u.role === "admin" && <Shield className="size-3" />}
-                      {u.role}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-500">{u.dibuat}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={u.aktif}
-                        disabled={isSelf}
-                        onCheckedChange={(checked) => {
-                          toggleUserAktif(u.id, checked);
-                          toast.info(
-                            checked
-                              ? `Akses ${u.nama} diaktifkan`
-                              : `Akses ${u.nama} dinonaktifkan`
-                          );
-                        }}
-                      />
-                      <span className="text-xs font-medium text-slate-600">
-                        {u.aktif ? "Aktif" : "Nonaktif"}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(u)}>
+                  </div>
+                  <Badge variant={u.role === "admin" ? "violet" : "blue"}>
+                    {u.role === "admin" && <Shield className="size-3" />}
+                    {u.role}
+                  </Badge>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={u.aktif}
+                      disabled={isSelf || !isAdmin}
+                      onCheckedChange={(checked) => {
+                        toggleUserAktif(u.id, checked);
+                        toast.info(
+                          checked
+                            ? `Akses ${u.nama} diaktifkan`
+                            : `Akses ${u.nama} dinonaktifkan`
+                        );
+                      }}
+                    />
+                    <span className="text-muted-foreground text-xs font-medium">
+                      {u.aktif ? "Akses Aktif" : "Nonaktif"}
+                    </span>
+                  </div>
+                  {isAdmin && (
+                    <Button variant="outline" size="sm" onClick={() => openEdit(u)}>
                       <Pencil className="size-3.5" />
                       Ubah
                     </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </Card>
 
       {/* Dialog Tambah / Ubah Pegawai */}
@@ -205,7 +283,7 @@ export default function PegawaiPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="nama-pegawai">Nama Lengkap & Gelar</Label>
+              <Label htmlFor="nama-pegawai">Nama Lengkap &amp; Gelar</Label>
               <Input
                 id="nama-pegawai"
                 required
@@ -234,7 +312,7 @@ export default function PegawaiPage() {
                   {editingUser ? "Reset PIN (Opsional)" : "PIN Awal"}
                 </Label>
                 <div className="relative">
-                  <KeyRound className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+                  <KeyRound className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
                   <Input
                     id="pin-pegawai"
                     type="password"
@@ -249,10 +327,10 @@ export default function PegawaiPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-xl border border-slate-200 p-3">
+            <div className="flex items-center justify-between rounded-xl border border-border p-3">
               <div>
-                <div className="text-sm font-medium text-slate-900">Izinkan Login</div>
-                <p className="text-xs text-slate-500">
+                <div className="text-foreground text-sm font-medium">Izinkan Login</div>
+                <p className="text-muted-foreground text-xs">
                   Akun nonaktif tidak muncul di pilihan halaman Login.
                 </p>
               </div>

@@ -27,11 +27,11 @@ function SheetContent({
 }) {
   return (
     <SheetPrimitive.Portal>
-      <SheetPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-slate-950/45 backdrop-blur-[1px]" />
+      <SheetPrimitive.Overlay className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-slate-950/55 backdrop-blur-[1px]" />
       <SheetPrimitive.Content
         data-slot="sheet-content"
         className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed inset-y-0 z-50 flex h-full flex-col p-6 shadow-2xl transition ease-in-out",
+          "bg-card text-card-foreground data-[state=open]:animate-in data-[state=closed]:animate-out fixed inset-y-0 z-50 flex h-full flex-col p-5 shadow-2xl transition ease-in-out sm:p-6",
           side === "left"
             ? "data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left left-0 w-72 border-r"
             : "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right right-0 w-full max-w-md border-l sm:max-w-lg",
@@ -40,7 +40,7 @@ function SheetContent({
         {...props}
       >
         {children}
-        <SheetPrimitive.Close className="absolute top-4 right-4 rounded-md p-1.5 opacity-70 hover:bg-slate-100 hover:opacity-100 cursor-pointer">
+        <SheetPrimitive.Close className="hover:bg-muted absolute top-4 right-4 cursor-pointer rounded-md p-1.5 opacity-70 hover:opacity-100">
           <X className="size-4" />
           <span className="sr-only">Tutup panel</span>
         </SheetPrimitive.Close>
@@ -65,7 +65,7 @@ function SheetTitle({
 }: React.ComponentProps<typeof SheetPrimitive.Title>) {
   return (
     <SheetPrimitive.Title
-      className={cn("text-base font-semibold text-slate-900", className)}
+      className={cn("text-foreground text-base font-semibold", className)}
       {...props}
     />
   );
@@ -77,7 +77,7 @@ function SheetDescription({
 }: React.ComponentProps<typeof SheetPrimitive.Description>) {
   return (
     <SheetPrimitive.Description
-      className={cn("text-xs text-slate-500", className)}
+      className={cn("text-muted-foreground text-xs", className)}
       {...props}
     />
   );

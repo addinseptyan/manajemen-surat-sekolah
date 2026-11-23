@@ -19,19 +19,23 @@ const DYNAMIC_TOKENS: Record<
 > = {
   "{urut}": {
     label: "Nomor Urut",
-    badgeClass: "border-blue-300 bg-blue-50 text-blue-800",
+    badgeClass:
+      "border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-200",
   },
   "{jenis}": {
     label: "Kode Jenis",
-    badgeClass: "border-violet-300 bg-violet-50 text-violet-800",
+    badgeClass:
+      "border-violet-300 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-200",
   },
   "{bulan}": {
     label: "Bulan Romawi",
-    badgeClass: "border-emerald-300 bg-emerald-50 text-emerald-800",
+    badgeClass:
+      "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200",
   },
   "{tahun}": {
     label: "Tahun",
-    badgeClass: "border-amber-300 bg-amber-50 text-amber-900",
+    badgeClass:
+      "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200",
   },
 };
 
@@ -60,7 +64,6 @@ export function FormatNomorBuilder({ value, onChange }: FormatNomorBuilderProps)
   }
 
   function updateTextSegment(idx: number, newText: string) {
-    // Cegah garis miring di dalam satu segmen agar struktur tetap rapi
     const clean = newText.replace(/\//g, "");
     const copy = [...segments];
     copy[idx] = clean;
@@ -88,9 +91,9 @@ export function FormatNomorBuilder({ value, onChange }: FormatNomorBuilderProps)
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-slate-500">
-          <b>Drag &amp; geser</b> blok di bawah untuk mengubah urutan, atau <b>ketik langsung</b>{" "}
-          pada kotak teks sekolah (<code className="font-mono">34.114</code>,{" "}
+        <p className="text-muted-foreground text-xs">
+          <b>Drag &amp; geser</b> blok (atau gunakan tombol panah di HP) untuk mengubah urutan, dan{" "}
+          <b>ketik langsung</b> pada blok teks tetap (<code className="font-mono">34.114</code>,{" "}
           <code className="font-mono">SMKNST</code>).
         </p>
         <div className="flex items-center gap-1.5">
@@ -112,7 +115,7 @@ export function FormatNomorBuilder({ value, onChange }: FormatNomorBuilderProps)
       </div>
 
       {/* Area Blok Segmen Draggable */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3.5">
+      <div className="bg-muted/50 flex flex-wrap items-center gap-2 rounded-xl border border-border p-3.5">
         {segments.map((seg, idx) => {
           const tokenMeta = DYNAMIC_TOKENS[seg];
           const isOver = dragOverIndex === idx && dragIndex !== idx;
@@ -141,7 +144,7 @@ export function FormatNomorBuilder({ value, onChange }: FormatNomorBuilderProps)
                   "group flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 shadow-2xs transition-all select-none",
                   tokenMeta
                     ? tokenMeta.badgeClass
-                    : "border-slate-300 bg-white text-slate-800",
+                    : "bg-card text-foreground border-border",
                   dragIndex === idx && "opacity-45",
                   isOver && "ring-2 ring-violet-500"
                 )}
@@ -157,7 +160,7 @@ export function FormatNomorBuilder({ value, onChange }: FormatNomorBuilderProps)
                   </div>
                 ) : (
                   <div className="flex flex-col">
-                    <span className="text-[10px] leading-none font-medium text-slate-400">
+                    <span className="text-muted-foreground text-[10px] leading-none font-medium">
                       Teks Tetap
                     </span>
                     <input
@@ -165,56 +168,54 @@ export function FormatNomorBuilder({ value, onChange }: FormatNomorBuilderProps)
                       value={seg}
                       onChange={(e) => updateTextSegment(idx, e.target.value)}
                       aria-label="Ubah teks segmen"
-                      className="mt-0.5 w-20 border-b border-dashed border-slate-300 bg-transparent font-mono text-xs font-bold text-slate-900 focus:border-violet-600 focus:outline-none"
+                      className="text-foreground mt-0.5 w-20 border-b border-dashed border-border bg-transparent font-mono text-xs font-bold focus:border-violet-500 focus:outline-none"
                     />
                   </div>
                 )}
 
-                {/* Tombol geser kecil untuk layar sentuh / aksesibilitas */}
-                <div className="ml-1 flex items-center gap-0.5 opacity-60 group-hover:opacity-100">
+                <div className="ml-1 flex items-center gap-0.5 opacity-80 sm:opacity-60 sm:group-hover:opacity-100">
                   <button
                     type="button"
                     disabled={idx === 0}
                     onClick={() => moveSegment(idx, idx - 1)}
-                    className="cursor-pointer rounded p-0.5 hover:bg-black/5 disabled:opacity-25"
+                    className="cursor-pointer rounded p-1 hover:bg-black/10 disabled:opacity-25 dark:hover:bg-white/10"
                     title="Geser kiri"
                   >
-                    <ArrowLeft className="size-3" />
+                    <ArrowLeft className="size-3.5" />
                   </button>
                   <button
                     type="button"
                     disabled={idx === segments.length - 1}
                     onClick={() => moveSegment(idx, idx + 1)}
-                    className="cursor-pointer rounded p-0.5 hover:bg-black/5 disabled:opacity-25"
+                    className="cursor-pointer rounded p-1 hover:bg-black/10 disabled:opacity-25 dark:hover:bg-white/10"
                     title="Geser kanan"
                   >
-                    <ArrowRight className="size-3" />
+                    <ArrowRight className="size-3.5" />
                   </button>
                   {segments.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeSegment(idx)}
-                      className="cursor-pointer rounded p-0.5 text-red-600 hover:bg-red-100/60"
+                      className="cursor-pointer rounded p-1 text-red-500 hover:bg-red-500/15"
                       title="Hapus segmen"
                     >
-                      <X className="size-3" />
+                      <X className="size-3.5" />
                     </button>
                   )}
                 </div>
               </div>
 
               {idx < segments.length - 1 && (
-                <span className="font-mono text-base font-bold text-slate-400">/</span>
+                <span className="text-muted-foreground font-mono text-base font-bold">/</span>
               )}
             </div>
           );
         })}
       </div>
 
-      {/* Tombol kembalikan token variabel yang sempat dihapus */}
       {missingTokens.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="text-slate-500">Tambahkan variabel:</span>
+          <span className="text-muted-foreground">Tambahkan variabel:</span>
           {missingTokens.map((t) => (
             <Button
               key={t}
@@ -230,9 +231,8 @@ export function FormatNomorBuilder({ value, onChange }: FormatNomorBuilderProps)
         </div>
       )}
 
-      {/* Sinkronisasi string manual */}
       <div className="space-y-1">
-        <span className="text-[11px] font-medium text-slate-500">
+        <span className="text-muted-foreground text-[11px] font-medium">
           String Format Lengkap (Sinkron Otomatis):
         </span>
         <Input

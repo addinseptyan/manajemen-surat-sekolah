@@ -99,10 +99,10 @@ export function TablePageSkeleton() {
       </Card>
 
       <Card className="overflow-hidden py-0">
-        <div className="border-b border-slate-100 bg-slate-50/70 px-4 py-3">
+        <div className="bg-muted/50 border-b border-border px-4 py-3">
           <Skeleton className="h-4 w-full max-w-xl" />
         </div>
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-border">
           {[1, 2, 3, 4, 5].map((row) => (
             <div key={row} className="flex items-center justify-between gap-4 px-4 py-3.5">
               <Skeleton className="h-4 w-24" />

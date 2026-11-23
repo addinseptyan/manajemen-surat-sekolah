@@ -35,7 +35,14 @@ export interface Klasifikasi {
   nama: string;
 }
 
+export interface DisposisiJabatan {
+  id: string;
+  nama: string;
+  aktif: boolean;
+}
+
 export interface Pengaturan {
+  namaAplikasi: string;
   instansiInduk: string;
   namaSekolah: string;
   alamatSekolah: string;

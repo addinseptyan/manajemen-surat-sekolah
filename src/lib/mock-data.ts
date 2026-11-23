@@ -1,4 +1,4 @@
-import type { Klasifikasi, Pengaturan, Surat, User } from "./types";
+import type { DisposisiJabatan, Klasifikasi, Pengaturan, Surat, User } from "./types";
 
 // Data dummy untuk mode demo & portfolio publik. Bukan data asli sekolah mana pun.
 export const INITIAL_USERS: User[] = [
@@ -20,7 +20,20 @@ export const INITIAL_KLASIFIKASI: Klasifikasi[] = [
   { kode: "UND", nama: "Surat Undangan" },
 ];
 
+// 8 Jabatan krusial sekolah untuk Tujuan Disposisi (dapat di-CRUD oleh Admin di Pengaturan)
+export const INITIAL_DISPOSISI: DisposisiJabatan[] = [
+  { id: "d1", nama: "Kepala Sekolah", aktif: true },
+  { id: "d2", nama: "Kepala Tata Usaha (Ka. TU)", aktif: true },
+  { id: "d3", nama: "Waka Kurikulum", aktif: true },
+  { id: "d4", nama: "Waka Kesiswaan", aktif: true },
+  { id: "d5", nama: "Waka Humas / Hubin (PKL & BKK)", aktif: true },
+  { id: "d6", nama: "Waka Sarana & Prasarana", aktif: true },
+  { id: "d7", nama: "Bendahara / Keuangan (BOS)", aktif: true },
+  { id: "d8", nama: "Operator Dapodik", aktif: true },
+];
+
 export const INITIAL_PENGATURAN: Pengaturan = {
+  namaAplikasi: "Manajemen Surat",
   instansiInduk: "Pemerintah Provinsi Jawa Timur · Dinas Pendidikan",
   namaSekolah: "SMK Nusantara Lab",
   alamatSekolah: "Jl. Pendidikan Nusantara No. 10, Jawa Timur",
@@ -102,7 +115,6 @@ export const INITIAL_SURAT: Surat[] = [
     pembuat: "Admin Tata Usaha",
     dibuat: "2026-04-18",
   },
-  // Contoh kasus nyata: nomor 005 & 006 belum ketemu berkasnya, tapi sudah harus lanjut ke 007
   {
     id: "s5-gap",
     arah: "keluar",
@@ -163,7 +175,7 @@ export const INITIAL_SURAT: Surat[] = [
     tanggal: "2026-01-09",
     pihak: "Dinas Pendidikan Provinsi Jawa Timur",
     perihal: "Edaran Kalender Pelaksanaan Asesmen & UKK Tahun 2026",
-    catatan: "[Disposisi: Waka Kurikulum, Kepala TU] Segera susun jadwal penguji eksternal",
+    catatan: "[Disposisi: Kepala Sekolah, Waka Kurikulum] Segera susun jadwal penguji eksternal",
     fileName: "Edaran-Disdik-UKK.pdf",
     fileUrl: "#demo-file",
     fileMime: "application/pdf",
@@ -181,7 +193,7 @@ export const INITIAL_SURAT: Surat[] = [
     tanggal: "2026-02-19",
     pihak: "PT Nusantara Teknologi Digital",
     perihal: "Balasan Kesediaan Penerimaan Siswa PKL Gelombang I",
-    catatan: "[Disposisi: Waka Humas / Hubin] Siapkan surat pengantar keberangkatan",
+    catatan: "[Disposisi: Waka Humas / Hubin (PKL & BKK)] Siapkan surat pengantar keberangkatan",
     fileName: "Balasan-PKL-NTD.pdf",
     fileUrl: "#demo-file",
     fileMime: "application/pdf",
@@ -199,7 +211,7 @@ export const INITIAL_SURAT: Surat[] = [
     tanggal: "2026-03-22",
     pihak: "Puskesmas Kecamatan",
     perihal: "Pemberitahuan Pemeriksaan Kesehatan Berkala Peserta Didik",
-    catatan: "[Disposisi: Waka Kesiswaan] Koordinasikan jadwal kelas X dengan Pembina UKS",
+    catatan: "[Disposisi: Waka Kesiswaan] Koordinasikan jadwal kelas X",
     fileUrl: "",
     status: "Lengkap",
     pembuat: "Budi Santoso, S.Pd",
