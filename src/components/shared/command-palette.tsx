@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { FileText, Inbox, Moon, PlusCircle, Send, Sun } from "lucide-react";
+import { FileText, Inbox, KeyRound, Moon, PlusCircle, Send, Sun } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import { NAV_ITEMS } from "@/lib/theme";
 import {
@@ -20,12 +20,18 @@ import {
 interface CommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onOpenChangePin?: () => void;
 }
 
-export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
+export function CommandPalette({
+  open,
+  onOpenChange,
+  onOpenChangePin,
+}: CommandPaletteProps) {
   const router = useRouter();
-  const { suratList } = useApp();
+  const { suratList, currentUser } = useApp();
   const { resolvedTheme, setTheme } = useTheme();
+  const isAdmin = currentUser.role === "admin";
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -42,6 +48,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     onOpenChange(false);
     fn();
   }
+
+  const visibleNavItems = NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
@@ -66,6 +74,15 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             <span>Catat Surat Masuk &amp; Disposisi</span>
             <CommandShortcut>Baru</CommandShortcut>
           </CommandItem>
+          {onOpenChangePin && (
+            <CommandItem
+              value="ubah ganti pin keamanan password saya"
+              onSelect={() => runCommand(onOpenChangePin)}
+            >
+              <KeyRound className="size-4 text-violet-600 dark:text-violet-400" />
+              <span>Ubah PIN Keamanan Saya</span>
+            </CommandItem>
+          )}
           <CommandItem
             value="ganti tema mode gelap terang dark light"
             onSelect={() =>
@@ -86,7 +103,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         <CommandSeparator />
 
         <CommandGroup heading="Navigasi Halaman">
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             return (
               <CommandItem

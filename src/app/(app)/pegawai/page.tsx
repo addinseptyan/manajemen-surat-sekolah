@@ -1,14 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { KeyRound, Loader2, Pencil, Plus, Shield, Users } from "lucide-react";
+import { KeyRound, Loader2, Pencil, Plus, Shield, Trash2, Users } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import { THEMES } from "@/lib/theme";
 import type { Role, User } from "@/lib/types";
-import { cn, formatTanggalIndo, getInitials, sleep } from "@/lib/utils";
+import { cn, formatTanggalIndo, getInitials } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import { TablePageSkeleton } from "@/components/shared/page-skeletons";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,23 +52,39 @@ import {
 } from "@/components/ui/table";
 
 export default function PegawaiPage() {
+  const router = useRouter();
   const theme = THEMES.rose;
-  const { users, currentUser, saveUser, toggleUserAktif } = useApp();
-  const isAdmin = currentUser.role === "admin";
+  const {
+    users,
+    currentUser,
+    isAuthLoading,
+    refreshUsers,
+    saveUser,
+    toggleUserAktif,
+    deleteUser,
+  } = useApp();
 
   const [initialLoading, setInitialLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
+
   const [nama, setNama] = useState("");
   const [role, setRole] = useState<Role>("pegawai");
   const [pinBaru, setPinBaru] = useState("");
   const [aktif, setAktif] = useState(true);
+  const [formError, setFormError] = useState("");
 
   useEffect(() => {
-    const timer = setTimeout(() => setInitialLoading(false), 220);
+    if (!isAuthLoading && currentUser.role !== "admin") {
+      router.replace("/dashboard?denied=admin");
+      return;
+    }
+    void refreshUsers();
+    const timer = setTimeout(() => setInitialLoading(false), 200);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isAuthLoading, currentUser.role, refreshUsers, router]);
 
   function openCreate() {
     setEditingUser(null);
@@ -65,6 +92,7 @@ export default function PegawaiPage() {
     setRole("pegawai");
     setPinBaru("");
     setAktif(true);
+    setFormError("");
     setDialogOpen(true);
   }
 
@@ -74,6 +102,7 @@ export default function PegawaiPage() {
     setRole(u.role);
     setPinBaru("");
     setAktif(u.aktif);
+    setFormError("");
     setDialogOpen(true);
   }
 
@@ -81,14 +110,22 @@ export default function PegawaiPage() {
     e.preventDefault();
     if (!nama.trim() || isSaving) return;
     setIsSaving(true);
-    await sleep(260);
-    saveUser({
+    setFormError("");
+
+    const res = await saveUser({
       id: editingUser?.id,
       nama: nama.trim(),
       role,
+      pin: pinBaru.trim() || undefined,
       aktif,
     });
     setIsSaving(false);
+
+    if (!res.ok) {
+      setFormError(res.error ?? "Gagal menyimpan data pegawai.");
+      return;
+    }
+
     setDialogOpen(false);
     toast.success(
       editingUser ? "Data akun pegawai diperbarui" : "Pegawai baru berhasil ditambahkan",
@@ -96,7 +133,30 @@ export default function PegawaiPage() {
     );
   }
 
-  if (initialLoading) {
+  async function handleToggleAktif(u: User, checked: boolean) {
+    const res = await toggleUserAktif(u, checked);
+    if (!res.ok) {
+      toast.error("Tidak dapat mengubah status", { description: res.error });
+      return;
+    }
+    toast.info(
+      checked ? `Akses ${u.nama} diaktifkan` : `Akses ${u.nama} dinonaktifkan`
+    );
+  }
+
+  async function handleConfirmDelete() {
+    if (!deletingUser) return;
+    const res = await deleteUser(deletingUser.id);
+    if (!res.ok) {
+      toast.error("Gagal menghapus akun", { description: res.error });
+      setDeletingUser(null);
+      return;
+    }
+    toast.success("Akun pegawai dihapus", { description: deletingUser.nama });
+    setDeletingUser(null);
+  }
+
+  if (initialLoading || isAuthLoading || currentUser.role !== "admin") {
     return <TablePageSkeleton />;
   }
 
@@ -104,16 +164,14 @@ export default function PegawaiPage() {
     <div className="space-y-6">
       <PageHeader
         title="Manajemen Pegawai"
-        description="Kelola akun staf Tata Usaha, peran akses (Admin/Pegawai), serta status keaktifan."
+        description="Kelola akun staf Tata Usaha, peran akses (Admin/Pegawai), reset PIN SHA-256, serta status keaktifan."
         icon={Users}
         theme="rose"
         actions={
-          isAdmin ? (
-            <Button className={cn("w-full sm:w-auto", theme.buttonPrimary)} onClick={openCreate}>
-              <Plus className="size-4" />
-              Tambah Pegawai
-            </Button>
-          ) : undefined
+          <Button className={cn("w-full sm:w-auto", theme.buttonPrimary)} onClick={openCreate}>
+            <Plus className="size-4" />
+            Tambah Pegawai
+          </Button>
         }
       />
 
@@ -127,7 +185,7 @@ export default function PegawaiPage() {
                 <TableHead className="w-36">Peran</TableHead>
                 <TableHead className="w-44">Terdaftar</TableHead>
                 <TableHead className="w-36">Status Akses</TableHead>
-                <TableHead className="w-24 text-right">Aksi</TableHead>
+                <TableHead className="w-28 text-right">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -152,7 +210,7 @@ export default function PegawaiPage() {
                             )}
                           </div>
                           <div className="text-muted-foreground text-xs">
-                            PIN terenkripsi SHA-256
+                            Hash &apos;h&apos; + SHA-256(SALT + PIN)
                           </div>
                         </div>
                       </div>
@@ -164,21 +222,14 @@ export default function PegawaiPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs">
-                      {formatTanggalIndo(u.dibuat)}
+                      {u.dibuat ? formatTanggalIndo(u.dibuat) : "—"}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Switch
                           checked={u.aktif}
-                          disabled={isSelf || !isAdmin}
-                          onCheckedChange={(checked) => {
-                            toggleUserAktif(u.id, checked);
-                            toast.info(
-                              checked
-                                ? `Akses ${u.nama} diaktifkan`
-                                : `Akses ${u.nama} dinonaktifkan`
-                            );
-                          }}
+                          disabled={isSelf}
+                          onCheckedChange={(checked) => handleToggleAktif(u, checked)}
                         />
                         <span className="text-muted-foreground text-xs font-medium">
                           {u.aktif ? "Aktif" : "Nonaktif"}
@@ -186,15 +237,29 @@ export default function PegawaiPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={!isAdmin}
-                        onClick={() => openEdit(u)}
-                      >
-                        <Pencil className="size-3.5" />
-                        Ubah
-                      </Button>
+                      <div className="inline-flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEdit(u)}
+                          title="Ubah / Reset PIN"
+                        >
+                          <Pencil className="text-muted-foreground size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={isSelf}
+                          onClick={() => setDeletingUser(u)}
+                          title={
+                            isSelf
+                              ? "Tidak dapat menghapus akun sendiri"
+                              : "Hapus akun pegawai"
+                          }
+                        >
+                          <Trash2 className="size-4 text-red-500" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -226,7 +291,7 @@ export default function PegawaiPage() {
                         )}
                       </div>
                       <div className="text-muted-foreground text-xs">
-                        Terdaftar {formatTanggalIndo(u.dibuat)}
+                        {u.dibuat ? `Terdaftar ${formatTanggalIndo(u.dibuat)}` : "Akun aktif"}
                       </div>
                     </div>
                   </div>
@@ -240,26 +305,29 @@ export default function PegawaiPage() {
                   <div className="flex items-center gap-2">
                     <Switch
                       checked={u.aktif}
-                      disabled={isSelf || !isAdmin}
-                      onCheckedChange={(checked) => {
-                        toggleUserAktif(u.id, checked);
-                        toast.info(
-                          checked
-                            ? `Akses ${u.nama} diaktifkan`
-                            : `Akses ${u.nama} dinonaktifkan`
-                        );
-                      }}
+                      disabled={isSelf}
+                      onCheckedChange={(checked) => handleToggleAktif(u, checked)}
                     />
                     <span className="text-muted-foreground text-xs font-medium">
                       {u.aktif ? "Akses Aktif" : "Nonaktif"}
                     </span>
                   </div>
-                  {isAdmin && (
+                  <div className="flex items-center gap-1">
                     <Button variant="outline" size="sm" onClick={() => openEdit(u)}>
                       <Pencil className="size-3.5" />
                       Ubah
                     </Button>
-                  )}
+                    {!isSelf && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDeletingUser(u)}
+                        className="text-red-500 hover:text-red-600"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -277,7 +345,7 @@ export default function PegawaiPage() {
             <DialogDescription>
               {editingUser
                 ? "Kosongkan kolom PIN jika tidak ingin mereset PIN pegawai."
-                : "Tetapkan nama, hak akses, dan PIN awal untuk login aplikasi."}
+                : "Tetapkan nama, peran, dan PIN awal (4–8 angka). PIN Admin dan Pegawai tidak boleh sama."}
             </DialogDescription>
           </DialogHeader>
 
@@ -289,14 +357,24 @@ export default function PegawaiPage() {
                 required
                 placeholder="Contoh: Dewi Lestari, S.Kom"
                 value={nama}
-                onChange={(e) => setNama(e.target.value)}
+                onChange={(e) => {
+                  setNama(e.target.value);
+                  setFormError("");
+                }}
               />
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Peran (Role)</Label>
-                <Select value={role} onValueChange={(v) => setRole(v as Role)}>
+                <Select
+                  value={role}
+                  disabled={Boolean(editingUser && editingUser.id === currentUser.id)}
+                  onValueChange={(v) => {
+                    setRole(v as Role);
+                    setFormError("");
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -309,7 +387,7 @@ export default function PegawaiPage() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="pin-pegawai">
-                  {editingUser ? "Reset PIN (Opsional)" : "PIN Awal"}
+                  {editingUser ? "Reset PIN (Opsional)" : "PIN Awal (4–8 Angka)"}
                 </Label>
                 <div className="relative">
                   <KeyRound className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
@@ -317,11 +395,15 @@ export default function PegawaiPage() {
                     id="pin-pegawai"
                     type="password"
                     inputMode="numeric"
+                    maxLength={8}
                     required={!editingUser}
-                    placeholder="6 digit angka"
+                    placeholder="4–8 angka"
                     value={pinBaru}
-                    onChange={(e) => setPinBaru(e.target.value)}
-                    className="pl-9"
+                    onChange={(e) => {
+                      setPinBaru(e.target.value);
+                      setFormError("");
+                    }}
+                    className="pl-9 tracking-widest"
                   />
                 </div>
               </div>
@@ -334,8 +416,18 @@ export default function PegawaiPage() {
                   Akun nonaktif tidak muncul di pilihan halaman Login.
                 </p>
               </div>
-              <Switch checked={aktif} onCheckedChange={setAktif} />
+              <Switch
+                checked={aktif}
+                disabled={Boolean(editingUser && editingUser.id === currentUser.id)}
+                onCheckedChange={setAktif}
+              />
             </div>
+
+            {formError && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600 dark:bg-red-950/60 dark:text-red-300">
+                {formError}
+              </p>
+            )}
 
             <DialogFooter>
               <Button
@@ -358,6 +450,32 @@ export default function PegawaiPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* AlertDialog Konfirmasi Hapus Pegawai */}
+      <AlertDialog
+        open={Boolean(deletingUser)}
+        onOpenChange={(open) => !open && setDeletingUser(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Akun Pegawai Ini?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Akun <b className="text-foreground">{deletingUser?.nama}</b> akan dihapus dari
+              daftar pengguna. Riwayat nama pembuat pada arsip surat yang pernah dicatat tetap
+              tersimpan aman.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Ya, Hapus Akun
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

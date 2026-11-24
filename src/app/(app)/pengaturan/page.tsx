@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   ArrowDownAZ,
@@ -72,9 +73,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function PengaturanPage() {
+  const router = useRouter();
   const theme = THEMES.violet;
   const {
     currentUser,
+    isAuthLoading,
     pengaturan,
     klasifikasiList,
     disposisiList,
@@ -123,9 +126,13 @@ export default function PengaturanPage() {
   const [deletingDisp, setDeletingDisp] = useState<DisposisiJabatan | null>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setInitialLoading(false), 220);
+    if (!isAuthLoading && currentUser.role !== "admin") {
+      router.replace("/dashboard?denied=admin");
+      return;
+    }
+    const timer = setTimeout(() => setInitialLoading(false), 200);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isAuthLoading, currentUser.role, router]);
 
   const samplePreview2026 = useMemo(
     () => formatNomorSurat(format, Number(pad) || 3, 12, "SK", "2026-11-23"),
@@ -271,7 +278,7 @@ export default function PengaturanPage() {
     setDeletingDisp(null);
   }
 
-  if (initialLoading) {
+  if (initialLoading || isAuthLoading || currentUser.role !== "admin") {
     return <TablePageSkeleton />;
   }
 
