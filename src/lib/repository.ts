@@ -273,16 +273,21 @@ export async function saveSuratRecord(
     const repo = getDemoRepo();
     const { pengaturan } = repo;
 
-    let targetId = payload.id;
-    if (!targetId && payload.arah === "keluar" && payload.urutManual) {
-      const existingSlot = repo.suratList.find(
-        (s) =>
-          s.arah === "keluar" &&
-          s.tahun === tahun &&
-          s.urut === payload.urutManual &&
-          s.status === "Belum Lengkap"
-      );
-      if (existingSlot) targetId = existingSlot.id;
+    const targetId = payload.id;
+    const nextNormalUrut = calcNextUrut(repo.suratList, tahun);
+    if (
+      !targetId &&
+      payload.arah === "keluar" &&
+      payload.urutManual !== undefined &&
+      payload.urutManual < nextNormalUrut
+    ) {
+      return {
+        ok: false,
+        error: `Nomor urut baru minimal ${String(nextNormalUrut).padStart(
+          pengaturan.pad,
+          "0"
+        )} atau lebih besar. Untuk mengisi nomor kosong sebelumnya, gunakan tombol Lengkapi.`,
+      };
     }
 
     let demoFileUrl: string | undefined;
@@ -448,18 +453,25 @@ export async function saveSuratRecord(
   ]);
   const mappedRows = rawRows.map(mapSheetRowToSurat);
 
-  let targetRow = payload.id
+  const targetRow = payload.id
     ? mappedRows.find((s) => s.id === payload.id)
     : undefined;
 
-  if (!targetRow && payload.arah === "keluar" && payload.urutManual) {
-    targetRow = mappedRows.find(
-      (s) =>
-        s.arah === "keluar" &&
-        s.tahun === tahun &&
-        s.urut === payload.urutManual &&
-        s.status === "Belum Lengkap"
-    );
+  const nextNormalUrut = calcNextUrut(mappedRows, tahun);
+  if (
+    !targetRow &&
+    !payload.id &&
+    payload.arah === "keluar" &&
+    payload.urutManual !== undefined &&
+    payload.urutManual < nextNormalUrut
+  ) {
+    return {
+      ok: false,
+      error: `Nomor urut baru minimal ${String(nextNormalUrut).padStart(
+        pengaturan.pad,
+        "0"
+      )} atau lebih besar. Untuk mengisi nomor kosong sebelumnya, gunakan tombol Lengkapi.`,
+    };
   }
 
   if (targetRow) {

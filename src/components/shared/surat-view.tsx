@@ -33,6 +33,9 @@ import {
   downloadCsv,
   formatNomorSurat,
   formatTanggalIndo,
+  getAvailableYears,
+  getCurrentYearWib,
+  getTodayIsoWib,
   parseDisposisi,
 } from "@/lib/utils";
 import { DocumentPreviewDialog } from "@/components/shared/document-preview-dialog";
@@ -122,8 +125,13 @@ export function SuratView({ arah }: SuratViewProps) {
   const [query, setQuery] = useState("");
   const [filterJenis, setFilterJenis] = useState("ALL");
   const [filterKelengkapan, setFilterKelengkapan] = useState<FilterKelengkapan>("ALL");
-  const [filterTahun, setFilterTahun] = useState("2026");
+  const [filterTahun, setFilterTahun] = useState(() => String(getCurrentYearWib()));
   const [page, setPage] = useState(1);
+
+  const availableYears = useMemo(
+    () => getAvailableYears(suratList.map((s) => s.tahun)),
+    [suratList]
+  );
 
   // Detail Sheet & Document Preview state
   const [detailSurat, setDetailSurat] = useState<Surat | null>(null);
@@ -132,7 +140,7 @@ export function SuratView({ arah }: SuratViewProps) {
   // Dialog Tambah/Ubah state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSurat, setEditingSurat] = useState<Surat | null>(null);
-  const [formTanggal, setFormTanggal] = useState("2026-11-23");
+  const [formTanggal, setFormTanggal] = useState(() => getTodayIsoWib());
   const [formUrut, setFormUrut] = useState("8");
   const [lompatUrutEnabled, setLompatUrutEnabled] = useState(false);
   const [formJenis, setFormJenis] = useState(klasifikasiList[0]?.kode ?? "B");
@@ -223,14 +231,30 @@ export function SuratView({ arah }: SuratViewProps) {
   const safePage = Math.min(page, totalPages);
   const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const formTahun = Number(formTanggal.slice(0, 4)) || 2026;
+  const formTahun = Number(formTanggal.slice(0, 4)) || getCurrentYearWib();
   const normalNextUrut = useMemo(() => getNextUrut(formTahun), [getNextUrut, formTahun]);
-  const targetUrutNum = Math.max(1, Number(formUrut) || 1);
+  const rawParsedUrut = Number(formUrut);
+  const isLompatUrutInvalid =
+    isKeluar &&
+    !editingSurat &&
+    lompatUrutEnabled &&
+    (!Number.isInteger(rawParsedUrut) || rawParsedUrut < normalNextUrut);
+  const targetUrutNum = editingSurat
+    ? Math.max(1, rawParsedUrut || 1)
+    : Math.max(normalNextUrut, Math.floor(rawParsedUrut) || normalNextUrut);
 
   const pendingGapList = useMemo(() => {
-    if (!isKeluar || editingSurat || !lompatUrutEnabled) return [];
+    if (!isKeluar || editingSurat || !lompatUrutEnabled || isLompatUrutInvalid) return [];
     return getMissingUrutBefore(formTahun, targetUrutNum);
-  }, [isKeluar, editingSurat, lompatUrutEnabled, getMissingUrutBefore, formTahun, targetUrutNum]);
+  }, [
+    isKeluar,
+    editingSurat,
+    lompatUrutEnabled,
+    isLompatUrutInvalid,
+    getMissingUrutBefore,
+    formTahun,
+    targetUrutNum,
+  ]);
 
   const previewNomorKeluar = useMemo(() => {
     if (!isKeluar) return "";
@@ -244,8 +268,8 @@ export function SuratView({ arah }: SuratViewProps) {
   }, [isKeluar, pengaturan, targetUrutNum, formJenis, formTanggal]);
 
   function openCreateDialog() {
-    const today = new Date().toISOString().slice(0, 10);
-    const yr = Number(today.slice(0, 4)) || 2026;
+    const today = getTodayIsoWib();
+    const yr = Number(today.slice(0, 4)) || getCurrentYearWib();
     setEditingSurat(null);
     setFormTanggal(today);
     setFormUrut(String(getNextUrut(yr)));
@@ -281,10 +305,13 @@ export function SuratView({ arah }: SuratViewProps) {
 
   function handleTanggalChange(nextDate: string) {
     setFormTanggal(nextDate);
-    if (!editingSurat && !lompatUrutEnabled) {
+    if (!editingSurat) {
       const nextYr = Number(nextDate.slice(0, 4));
       if (nextYr >= 2000) {
-        setFormUrut(String(getNextUrut(nextYr)));
+        const nextYrUrut = getNextUrut(nextYr);
+        if (!lompatUrutEnabled || (Number(formUrut) || 0) < nextYrUrut) {
+          setFormUrut(String(nextYrUrut));
+        }
       }
     }
   }
@@ -292,6 +319,9 @@ export function SuratView({ arah }: SuratViewProps) {
   function handleToggleLompatUrut(checked: boolean) {
     setLompatUrutEnabled(checked);
     if (checked) {
+      if ((Number(formUrut) || 0) < normalNextUrut) {
+        setFormUrut(String(normalNextUrut));
+      }
       toast.warning("Mode Lompat Nomor Urut Diaktifkan", {
         description:
           "Nomor yang dilewati akan otomatis dicatat sebagai slot 'Belum Lengkap' agar arsip fisiknya ditertibkan.",
@@ -310,6 +340,13 @@ export function SuratView({ arah }: SuratViewProps) {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!formPihak.trim() || !formPerihal.trim() || isSaving) return;
+    if (isLompatUrutInvalid) {
+      toast.error("Nomor urut tidak valid", {
+        description: `Nomor urut minimal ${String(normalNextUrut).padStart(pengaturan.pad, "0")} atau lebih besar.`,
+      });
+      setFormUrut(String(normalNextUrut));
+      return;
+    }
     setIsSaving(true);
 
     const finalCatatan = isKeluar
@@ -587,9 +624,11 @@ export function SuratView({ arah }: SuratViewProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">Semua</SelectItem>
-                    <SelectItem value="2027">2027</SelectItem>
-                    <SelectItem value="2026">2026</SelectItem>
-                    <SelectItem value="2025">2025</SelectItem>
+                    {availableYears.map((yr) => (
+                      <SelectItem key={yr} value={String(yr)}>
+                        {yr}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1137,7 +1176,10 @@ export function SuratView({ arah }: SuratViewProps) {
 
       {/* Dialog Tambah / Ubah / Lengkapi Surat */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="max-h-[92vh] overflow-y-auto sm:max-w-lg"
+        >
           <DialogHeader>
             <DialogTitle>
               {editingSurat
@@ -1198,13 +1240,31 @@ export function SuratView({ arah }: SuratViewProps) {
                     <Input
                       id="urut-surat"
                       type="number"
-                      min={1}
+                      min={editingSurat ? 1 : normalNextUrut}
+                      step={1}
                       required
                       disabled={Boolean(editingSurat) || !lompatUrutEnabled}
                       value={formUrut}
                       onChange={(e) => setFormUrut(e.target.value)}
-                      className="font-mono font-semibold"
+                      onBlur={() => {
+                        if (!editingSurat && lompatUrutEnabled) {
+                          const n = Math.floor(Number(formUrut));
+                          if (!Number.isFinite(n) || n < normalNextUrut) {
+                            setFormUrut(String(normalNextUrut));
+                          }
+                        }
+                      }}
+                      className={cn(
+                        "font-mono font-semibold",
+                        isLompatUrutInvalid &&
+                          "border-red-500 focus-visible:ring-red-500/30"
+                      )}
                     />
+                    {isLompatUrutInvalid && (
+                      <p className="text-[11px] font-medium text-red-600 dark:text-red-400">
+                        Minimal {String(normalNextUrut).padStart(pengaturan.pad, "0")} atau lebih besar.
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label>Kode Jenis (A–Z)</Label>
@@ -1404,7 +1464,11 @@ export function SuratView({ arah }: SuratViewProps) {
               >
                 Batal
               </Button>
-              <Button type="submit" disabled={isSaving} className={theme.buttonPrimary}>
+              <Button
+                type="submit"
+                disabled={isSaving || isLompatUrutInvalid}
+                className={theme.buttonPrimary}
+              >
                 {isSaving && <Loader2 className="size-4 animate-spin" />}
                 {isSaving
                   ? "Menyimpan..."

@@ -9,6 +9,51 @@ export function sleep(ms = 260): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export const APP_START_YEAR = 2026;
+
+/**
+ * Mengembalikan tanggal hari ini ("YYYY-MM-DD") berdasarkan zona waktu WIB (Asia/Jakarta),
+ * sehingga pergantian tahun baru tepat pukul 00:00 WIB (tidak terlambat 7 jam oleh UTC).
+ */
+export function getTodayIsoWib(): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jakarta",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+/**
+ * Mengembalikan tahun kalender aktif (WIB), minimal mulai dari APP_START_YEAR (2026).
+ * Saat memasuki 1 Januari 2027 WIB -> otomatis bernilai 2027, dst.
+ */
+export function getCurrentYearWib(): number {
+  const yr = Number(getTodayIsoWib().slice(0, 4)) || APP_START_YEAR;
+  return Math.max(APP_START_YEAR, yr);
+}
+
+/**
+ * Menyusun daftar pilihan tahun dropdown secara dinamis mulai dari 2026 hingga tahun berjalan
+ * (atau tahun tertinggi yang tercatat di arsip surat), diurutkan dari terbaru ke terlama.
+ */
+export function getAvailableYears(suratYears: number[] = []): number[] {
+  const currentYr = getCurrentYearWib();
+  const validDataYears = suratYears.filter(
+    (y) => Number.isFinite(y) && y >= APP_START_YEAR
+  );
+  const maxYear = Math.max(currentYr, ...validDataYears);
+  const years: number[] = [];
+  for (let y = maxYear; y >= APP_START_YEAR; y--) {
+    years.push(y);
+  }
+  return years;
+}
+
 const ROMAN_MONTHS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
 
 const NAMA_BULAN_INDO = [
