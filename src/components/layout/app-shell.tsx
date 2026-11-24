@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LogOut, MailCheck, Menu, Search, Sparkles } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { KeyRound, LogOut, MailCheck, Menu, Search, Sparkles } from "lucide-react";
 import { NAV_ITEMS, THEMES, type NavItem } from "@/lib/theme";
 import { cn, getInitials } from "@/lib/utils";
 import { useApp } from "@/context/app-context";
+import { ChangePinDialog } from "@/components/shared/change-pin-dialog";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -55,11 +57,6 @@ function NavGroupList({
               <Icon className="size-4" />
             </span>
             <span className="flex-1 truncate">{item.label}</span>
-            {item.adminOnly && !active && (
-              <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium">
-                Admin
-              </span>
-            )}
           </Link>
         );
       })}
@@ -70,14 +67,19 @@ function NavGroupList({
 function NavMenuContent({
   onNavigate,
   onOpenCommand,
+  onOpenChangePin,
+  onLogout,
   showDesktopThemeToggle = false,
 }: {
   onNavigate?: () => void;
   onOpenCommand: () => void;
+  onOpenChangePin: () => void;
+  onLogout: () => void;
   showDesktopThemeToggle?: boolean;
 }) {
   const pathname = usePathname();
-  const { currentUser, pengaturan } = useApp();
+  const { currentUser, demoMode, pengaturan } = useApp();
+  const isAdmin = currentUser.role === "admin";
 
   const operasionalItems = NAV_ITEMS.filter((i) => i.group === "operasional");
   const adminItems = NAV_ITEMS.filter((i) => i.group === "administrasi");
@@ -126,28 +128,32 @@ function NavMenuContent({
           pathname={pathname}
           onNavigate={onNavigate}
         />
-        <NavGroupList
-          title="Administrasi"
-          items={adminItems}
-          pathname={pathname}
-          onNavigate={onNavigate}
-        />
+        {isAdmin && (
+          <NavGroupList
+            title="Administrasi"
+            items={adminItems}
+            pathname={pathname}
+            onNavigate={onNavigate}
+          />
+        )}
       </nav>
 
       <div className="mt-4 space-y-3">
-        <div className="rounded-xl border border-amber-200/80 bg-gradient-to-br from-amber-50 to-orange-50/50 p-3 dark:border-amber-800/50 dark:from-amber-950/40 dark:to-orange-950/20">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300">
-            <Sparkles className="size-3.5 text-amber-600 dark:text-amber-400" />
-            Mode Demo Interaktif
+        {demoMode && (
+          <div className="rounded-xl border border-amber-200/80 bg-gradient-to-br from-amber-50 to-orange-50/50 p-3 dark:border-amber-800/50 dark:from-amber-950/40 dark:to-orange-950/20">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300">
+              <Sparkles className="size-3.5 text-amber-600 dark:text-amber-400" />
+              Mode Demo Interaktif
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-amber-700/90 dark:text-amber-300/80">
+              Sesi PIN SHA-256 aktif. Ketuk ikon kunci di bawah untuk menguji ubah PIN sendiri.
+            </p>
           </div>
-          <p className="mt-1 text-[11px] leading-relaxed text-amber-700/90 dark:text-amber-300/80">
-            Ketuk surat untuk detail &amp; pratinjau berkas langsung di dalam aplikasi.
-          </p>
-        </div>
+        )}
 
         <div className="bg-muted/50 flex items-center justify-between gap-2 rounded-xl border border-border p-2.5">
           <div className="flex min-w-0 items-center gap-2.5">
-            <Avatar className="size-8">
+            <Avatar className="size-8 shrink-0">
               <AvatarFallback>{getInitials(currentUser.nama)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0">
@@ -163,11 +169,35 @@ function NavMenuContent({
             </div>
           </div>
 
-          <Button variant="ghost" size="icon" asChild title="Keluar ke halaman Login">
-            <Link href="/login">
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              title="Ubah PIN Saya"
+              aria-label="Ubah PIN Saya"
+              onClick={() => {
+                onNavigate?.();
+                onOpenChangePin();
+              }}
+            >
+              <KeyRound className="text-muted-foreground size-4" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              title="Keluar (Logout)"
+              aria-label="Keluar (Logout)"
+              onClick={() => {
+                onNavigate?.();
+                onLogout();
+              }}
+            >
               <LogOut className="text-muted-foreground size-4" />
-            </Link>
-          </Button>
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -175,9 +205,29 @@ function NavMenuContent({
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { pengaturan } = useApp();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { pengaturan, logout } = useApp();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [changePinOpen, setChangePinOpen] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("denied") === "admin") {
+      toast.error("Akses Khusus Admin", {
+        description: "Halaman Manajemen Pegawai dan Pengaturan hanya dapat diakses oleh Admin.",
+      });
+      window.history.replaceState({}, "", pathname);
+    }
+  }, [pathname]);
+
+  async function handleLogout() {
+    await logout();
+    toast.info("Anda telah keluar dari sesi kerja");
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <div className="bg-background flex min-h-screen print:bg-white">
@@ -185,6 +235,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="bg-card sticky top-0 hidden h-screen w-64 shrink-0 border-r border-border p-4 lg:block print:hidden">
         <NavMenuContent
           onOpenCommand={() => setCommandOpen(true)}
+          onOpenChangePin={() => setChangePinOpen(true)}
+          onLogout={handleLogout}
           showDesktopThemeToggle
         />
       </aside>
@@ -205,6 +257,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <NavMenuContent
                   onNavigate={() => setMobileOpen(false)}
                   onOpenCommand={() => setCommandOpen(true)}
+                  onOpenChangePin={() => setChangePinOpen(true)}
+                  onLogout={handleLogout}
                 />
               </SheetContent>
             </Sheet>
@@ -231,7 +285,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+      <CommandPalette
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+        onOpenChangePin={() => setChangePinOpen(true)}
+      />
+      <ChangePinDialog open={changePinOpen} onOpenChange={setChangePinOpen} />
     </div>
   );
 }

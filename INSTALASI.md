@@ -3,8 +3,8 @@
 Dokumen ini ditujukan untuk **siapa pun yang ingin mencoba atau memasang aplikasi ini dari GitHub** untuk sekolah/instansinya sendiri.
 
 Tersedia **2 jalur instalasi**:
-- **Jalur 1 — Mode Demo (2 menit, tanpa Google):** langsung jalan memakai data contoh. Cocok untuk mencoba UI atau meninjau portfolio.
-- **Jalur 2 — Pakai Sungguhan dengan Google Workspace Sendiri:** terhubung ke Google Sheets (database) & Google Drive (arsip file surat), lalu deploy gratis ke Vercel.
+- **Jalur 1 — Mode Demo (2 menit, tanpa Google):** langsung jalan memakai data contoh ber-autentikasi PIN nyata. Cocok untuk mencoba UI atau meninjau portfolio.
+- **Jalur 2 — Pakai Sungguhan dengan Google Workspace Sendiri:** terhubung ke Google Sheets (database) & Google Drive (arsip file surat), 100% kompatibel dengan Spreadsheet Apps Script versi lama, lalu deploy gratis ke Vercel.
 
 ---
 
@@ -38,27 +38,25 @@ Tersedia **2 jalur instalasi**:
    ```bash
    npm run dev
    ```
-   Buka `http://localhost:3000`, pilih **Admin**, masukkan PIN demo `123456`, lalu klik **Masuk**.
+   Buka `http://localhost:3000`:
+   - Akun **Admin Tata Usaha** → PIN demo: `123456`
+   - Akun **Pegawai** (*Budi Santoso, S.Pd* / *Siti Rahayu, M.Pd*) → PIN demo: `654321`
 
 ---
 
 ## Jalur 2 — Instalasi Penuh (Google Sheets + Google Drive + Vercel)
 
-> **Catatan status rilis:** Pada versi awal (`v0.1.0`), fokus kode adalah fondasi UI + mock data. Struktur environment variable dan skema Google Sheets di bawah ini sudah disiapkan agar saat konektor Google API diaktifkan (`USE_MOCK=false`), Anda tidak perlu mengubah struktur Spreadsheet maupun konfigurasi Vercel.
-
 ### Langkah 1 — Siapkan Google Spreadsheet & Folder Google Drive
-1. Buat **Google Spreadsheet** baru di Google Drive Anda.
-2. Catat **Spreadsheet ID** dari URL browser:
-   `https://docs.google.com/spreadsheets/d/SPREADSHEET_ID_ANDA/edit`
-3. Buat 5 tab (sheet) dengan nama **persis** berikut beserta baris header (baris ke-1):
-   - **`Users`**: `id | nama | pinHash | role | aktif | dibuat`
-   - **`Surat`**: `id | arah | nomor | urut | tahun | jenis | tanggal | pihak | perihal | catatan | fileId | fileUrl | status | pembuat | dibuat | alasanBatal | batalOleh | batalWaktu | reqId`
-   - **`Klasifikasi`**: `kode | nama`
-   - **`Pengaturan`**: `kunci | nilai`
-   - **`Log`**: `waktu | user | aksi | detail`
-4. Buat **1 folder khusus** di Google Drive untuk menyimpan lampiran/scan surat.
-5. Catat **Folder ID** dari URL folder tersebut:
-   `https://drive.google.com/drive/folders/FOLDER_ID_ANDA`
+Jika Anda **migrasi dari versi Google Apps Script lama**, Anda dapat langsung memakai Spreadsheet lama Anda tanpa mengubah data yang sudah ada!
+
+Jika membuat **Google Spreadsheet baru**, catat **Spreadsheet ID** dari URL browser (`https://docs.google.com/spreadsheets/d/SPREADSHEET_ID_ANDA/edit`) lalu siapkan 5 tab (sheet) dengan nama & kolom baris pertama berikut:
+- **`Users`**: `id | nama | role | pinHash | aktif`
+- **`Surat`**: `id | arah | nomor | urut | tahun | jenis | tanggal | pihak | perihal | catatan | fileUrl | status | pembuat | dibuat | alasanBatal | batalOleh | batalWaktu`
+- **`Klasifikasi`**: `kode | nama`
+- **`Pengaturan`**: `key | value`
+- **`Log`**: `waktu | user | aksi | detail`
+
+Siapkan juga **1 folder khusus** di Google Drive untuk menyimpan scan surat dan catat **Folder ID** dari URL-nya (`https://drive.google.com/drive/folders/FOLDER_ID_ANDA`).
 
 ### Langkah 2 — Buat Google Cloud Service Account (100% Gratis)
 1. Buka [Google Cloud Console](https://console.cloud.google.com/) dan buat Project baru (mis. `manajemen-surat-sekolah`).
@@ -88,9 +86,10 @@ Tersedia **2 jalur instalasi**:
    GOOGLE_DRIVE_FOLDER_ID=isi_folder_id_anda
    GOOGLE_SERVICE_ACCOUNT_EMAIL=surat-app-bot@project-anda.iam.gserviceaccount.com
    GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-   SALT=isi_string_acak_panjang_minimal_16_karakter
+   SALT=isi_salt_dari_script_properties_apps_script_lama
+   SESSION_SECRET=isi_string_acak_panjang_minimal_32_karakter
    ```
-   > **Penting tentang `SALT`:** Jika Anda migrasi dari versi Apps Script lama dan ingin PIN pegawai tetap sama tanpa reset, isi `SALT` dengan nilai `SALT` yang sama persis seperti di `Config.gs` lama. Jika instalasi baru, buat string acak baru sekali saja dan jangan diubah lagi.
+   > **Penting tentang `SALT`:** Rumus hash PIN aplikasi ini adalah `'h' + SHA256(SALT + pin)` — identik 100% dengan `Auth.gs` Apps Script lama. Jika Anda menyalin nilai `SALT` dari *Project Settings → Script Properties* di Apps Script lama, **seluruh PIN Admin & Pegawai yang sudah ada di Spreadsheet langsung bisa dipakai login tanpa perlu reset!**
 
 3. Uji di lokal:
    ```bash
@@ -100,6 +99,5 @@ Tersedia **2 jalur instalasi**:
 ### Langkah 5 — Deploy ke Vercel (Gratis)
 1. Fork atau push kode ini ke repositori GitHub milik Anda/sekolah.
 2. Login ke [Vercel](https://vercel.com) → **Add New Project** → pilih repositori GitHub tersebut.
-3. Sebelum klik **Deploy**, buka bagian **Environment Variables** di halaman setup Vercel, lalu tambahkan semua variabel dari `.env.local` (`USE_MOCK`, `GOOGLE_SPREADSHEET_ID`, `GOOGLE_DRIVE_FOLDER_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `SALT`) untuk environment **Production** dan **Preview**.
+3. Sebelum klik **Deploy**, buka bagian **Environment Variables** di halaman setup Vercel, lalu tambahkan semua variabel dari `.env.local` (`USE_MOCK`, `GOOGLE_SPREADSHEET_ID`, `GOOGLE_DRIVE_FOLDER_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `SALT`, `SESSION_SECRET`) untuk environment **Production** dan **Preview**.
 4. Klik **Deploy**. Aplikasi siap diakses online.
-5. Setiap ada perubahan variable di Vercel kemudian hari, masuk ke **Project Settings → Environment Variables**, simpan perubahan, lalu klik **Redeploy** pada deployment terakhir.

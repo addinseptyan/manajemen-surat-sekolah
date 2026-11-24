@@ -2,12 +2,14 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 import {
   INITIAL_DISPOSISI,
   INITIAL_KLASIFIKASI,
@@ -48,12 +50,25 @@ export interface SaveSuratResult {
 
 interface AppContextValue {
   currentUser: User;
+  isAuthenticated: boolean;
+  isAuthLoading: boolean;
+  demoMode: boolean;
   users: User[];
   suratList: Surat[];
   klasifikasiList: Klasifikasi[];
   disposisiList: DisposisiJabatan[];
   pengaturan: Pengaturan;
-  login: (userId: string) => void;
+  loginWithPin: (input: {
+    id: string;
+    pin: string;
+    remember: boolean;
+  }) => Promise<{ ok: boolean; user?: User; error?: string }>;
+  logout: () => Promise<void>;
+  changeOwnPin: (
+    pinLama: string,
+    pinBaru: string
+  ) => Promise<{ ok: boolean; error?: string }>;
+  refreshUsers: () => Promise<void>;
   getNextUrut: (tahun: number) => number;
   getMissingUrutBefore: (tahun: number, targetUrut: number) => number[];
   saveSurat: (input: SaveSuratInput) => SaveSuratResult;
@@ -67,8 +82,18 @@ interface AppContextValue {
     aktif: boolean;
   }) => { ok: boolean; error?: string };
   deleteDisposisi: (id: string) => void;
-  saveUser: (input: { id?: string; nama: string; role: Role; aktif: boolean }) => void;
-  toggleUserAktif: (id: string, aktif: boolean) => void;
+  saveUser: (input: {
+    id?: string;
+    nama: string;
+    role: Role;
+    pin?: string;
+    aktif: boolean;
+  }) => Promise<{ ok: boolean; error?: string }>;
+  toggleUserAktif: (
+    user: User,
+    aktif: boolean
+  ) => Promise<{ ok: boolean; error?: string }>;
+  deleteUser: (id: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 function sortKlasifikasi(list: Klasifikasi[]): Klasifikasi[] {
@@ -80,8 +105,12 @@ function sortKlasifikasi(list: Klasifikasi[]): Klasifikasi[] {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
-  const [currentUserId, setCurrentUserId] = useState<string>(INITIAL_USERS[0].id);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+  const [demoMode, setDemoMode] = useState<boolean>(true);
+
   const [suratList, setSuratList] = useState<Surat[]>(INITIAL_SURAT);
   const [rawKlasifikasi, setRawKlasifikasi] = useState<Klasifikasi[]>(INITIAL_KLASIFIKASI);
   const [disposisiList, setDisposisiList] =
@@ -89,15 +118,117 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [pengaturan, setPengaturan] = useState<Pengaturan>(INITIAL_PENGATURAN);
 
   const klasifikasiList = useMemo(() => sortKlasifikasi(rawKlasifikasi), [rawKlasifikasi]);
-  const currentUser = users.find((u) => u.id === currentUserId) ?? users[0];
+  const currentUser = authUser ?? INITIAL_USERS[0];
+  const isAuthenticated = Boolean(authUser);
 
   useEffect(() => {
     document.title = `${pengaturan.namaAplikasi} — ${pengaturan.namaSekolah}`;
   }, [pengaturan.namaAplikasi, pengaturan.namaSekolah]);
 
-  function login(userId: string) {
-    const found = users.find((u) => u.id === userId && u.aktif);
-    if (found) setCurrentUserId(found.id);
+  const refreshUsers = useCallback(async () => {
+    try {
+      const res = await fetch("/api/users", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = (await res.json()) as { ok: boolean; users?: User[] };
+      if (data.ok && data.users) {
+        setUsers(data.users);
+      }
+    } catch {
+      // Abaikan gangguan jaringan sementara
+    }
+  }, []);
+
+  // Sinkronisasi sesi aktif dari httpOnly cookie
+  useEffect(() => {
+    if (pathname === "/login") {
+      setIsAuthLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    async function checkSession() {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        if (!res.ok) {
+          if (!cancelled) {
+            setAuthUser(null);
+            setIsAuthLoading(false);
+          }
+          return;
+        }
+        const data = (await res.json()) as {
+          ok: boolean;
+          demoMode?: boolean;
+          user?: User;
+        };
+        if (!cancelled && data.ok && data.user) {
+          setAuthUser(data.user);
+          if (typeof data.demoMode === "boolean") setDemoMode(data.demoMode);
+          if (data.user.role === "admin") {
+            void refreshUsers();
+          }
+        }
+      } catch {
+        // Pertahankan state bila gagal fetch
+      } finally {
+        if (!cancelled) setIsAuthLoading(false);
+      }
+    }
+
+    void checkSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, refreshUsers]);
+
+  async function loginWithPin(input: { id: string; pin: string; remember: boolean }) {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        user?: User;
+        error?: string;
+      };
+      if (!res.ok || !data.ok || !data.user) {
+        return { ok: false, error: data.error || "PIN salah." };
+      }
+      setAuthUser(data.user);
+      if (data.user.role === "admin") {
+        void refreshUsers();
+      }
+      return { ok: true, user: data.user };
+    } catch {
+      return { ok: false, error: "Gagal menghubungi server autentikasi." };
+    }
+  }
+
+  async function logout() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      setAuthUser(null);
+    }
+  }
+
+  async function changeOwnPin(pinLama: string, pinBaru: string) {
+    try {
+      const res = await fetch("/api/auth/change-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinLama, pinBaru }),
+      });
+      const data = (await res.json()) as { ok: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        return { ok: false, error: data.error || "Gagal mengubah PIN." };
+      }
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Gagal menghubungi server." };
+    }
   }
 
   function getNextUrut(tahun: number): number {
@@ -125,7 +256,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const tahun = Number(input.tanggal.slice(0, 4)) || new Date().getFullYear();
     const today = new Date().toISOString().slice(0, 10);
 
-    // 1. Mode Ubah / Lengkapi Slot yang sudah ada
     if (input.id) {
       let updatedItem!: Surat;
       setSuratList((prev) =>
@@ -172,7 +302,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return { saved: updatedItem, generatedGaps: [] };
     }
 
-    // 2. Mode Buat Baru
     const targetUrut =
       input.arah === "keluar"
         ? Math.max(1, input.urutManual ?? getNextUrut(tahun))
@@ -337,44 +466,83 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDisposisiList((prev) => prev.filter((d) => d.id !== id));
   }
 
-  function saveUser(input: { id?: string; nama: string; role: Role; aktif: boolean }) {
-    const today = new Date().toISOString().slice(0, 10);
-    if (input.id) {
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === input.id
-            ? { ...u, nama: input.nama, role: input.role, aktif: input.aktif }
-            : u
-        )
-      );
-      return;
+  async function saveUser(input: {
+    id?: string;
+    nama: string;
+    role: Role;
+    pin?: string;
+    aktif: boolean;
+  }) {
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        users?: User[];
+        user?: User;
+        error?: string;
+      };
+      if (!res.ok || !data.ok) {
+        return { ok: false, error: data.error || "Gagal menyimpan akun pegawai." };
+      }
+      if (data.users) setUsers(data.users);
+      if (data.user && authUser && data.user.id === authUser.id) {
+        setAuthUser(data.user);
+      }
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Gagal menghubungi server." };
     }
-    setUsers((prev) => [
-      ...prev,
-      {
-        id: `u-${Date.now()}`,
-        nama: input.nama,
-        role: input.role,
-        aktif: input.aktif,
-        dibuat: today,
-      },
-    ]);
   }
 
-  function toggleUserAktif(id: string, aktif: boolean) {
-    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, aktif } : u)));
+  async function toggleUserAktif(user: User, aktif: boolean) {
+    return saveUser({
+      id: user.id,
+      nama: user.nama,
+      role: user.role,
+      aktif,
+    });
+  }
+
+  async function deleteUser(id: string) {
+    try {
+      const res = await fetch(`/api/users?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        users?: User[];
+        error?: string;
+      };
+      if (!res.ok || !data.ok) {
+        return { ok: false, error: data.error || "Gagal menghapus pegawai." };
+      }
+      if (data.users) setUsers(data.users);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Gagal menghubungi server." };
+    }
   }
 
   return (
     <AppContext.Provider
       value={{
         currentUser,
+        isAuthenticated,
+        isAuthLoading,
+        demoMode,
         users,
         suratList,
         klasifikasiList,
         disposisiList,
         pengaturan,
-        login,
+        loginWithPin,
+        logout,
+        changeOwnPin,
+        refreshUsers,
         getNextUrut,
         getMissingUrutBefore,
         saveSurat,
@@ -386,6 +554,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         deleteDisposisi,
         saveUser,
         toggleUserAktif,
+        deleteUser,
       }}
     >
       {children}
