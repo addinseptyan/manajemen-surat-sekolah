@@ -1,38 +1,90 @@
 # Manajemen Surat Sekolah
 
-Aplikasi web modern untuk penertiban administrasi surat keluar & surat masuk sekolah berbasis **Next.js 16 (App Router + `src/`)**, **TypeScript**, **Tailwind CSS v4**, **shadcn/ui**, **next-themes**, **Sonner**, **cmdk**, dan **Lucide Icons**.
+![Versi](https://img.shields.io/badge/rilis-v1.0.0-4f46e5)
+![Next.js](https://img.shields.io/badge/Next.js-16.2%20(App%20Router)-000000)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06b6d4)
+![Google Cloud](https://img.shields.io/badge/Database-Google%20Sheets%20%26%20Drive%20API-0f9d58)
 
-> **Catatan Portfolio:** Seluruh data bawaan di repositori ini adalah data contoh (*mock*) untuk keperluan demo & peninjauan kode. Tidak ada data atau kredensial asli sekolah di dalam repositori ini.
+Sistem informasi manajemen arsip **Surat Masuk**, **Surat Keluar**, **Penomoran Otomatis Lintas Tahun**, dan **Disposisi Digital** untuk Tata Usaha Sekolah — dimodernisasi penuh dari sistem lama Google Apps Script ke arsitektur cloud modern **Next.js 16 + TypeScript + shadcn/ui** dengan penyimpanan gratis menggunakan **Google Sheets API v4** & **Google Drive API v3 (15 GB `@gmail.com`)**.
 
-## Tech Stack
-- **Framework:** Next.js 16 (App Router, `src/` directory, Route Handlers & `proxy.ts` Guard) + React 19 + TypeScript
-- **Autentikasi & Keamanan:** Hash PIN `'h' + SHA256(SALT + pin)` (kompatibel penuh dengan Spreadsheet Apps Script sekolah) + Signed `httpOnly` Cookie HMAC-SHA256
-- **UI & UX 2026:** Tailwind CSS v4 + **shadcn/ui** (Radix UI Primitives) + **next-themes** (Dark/Light Mode dengan transisi halus) + **cmdk** (Combobox & `Ctrl+K` Command Palette) + **Sonner** (Interactive Toast) + **Lucide React**
-- **Database & Storage (Produksi):** Google Sheets API + Google Drive API via Service Account (100% gratis)
-- **CI/CD & Hosting:** GitHub Actions (CI + Auto-Mirror Release) + Vercel
+---
 
-## Menjalankan Demo Lokal (2 Menit, Tanpa Setup Google)
+## Fitur Utama (`v1.0.0`)
+
+- **Penomoran Surat Keluar Otomatis & Lompat Nomor Urut (Reserve Slot)**
+  - Penomoran otomatis berbasis pola fleksibel (`{urut}`, `{jenis}`, `{bulan}`, `{bulan_angka}`, `{tahun}`) yang otomatis me-reset nomor urut kembali ke `001` setiap pergantian tahun baru.
+  - Fitur **Lompat Nomor Urut**: apabila TU menerbitkan nomor urut lebih tinggi (misal lompat ke `010`), nomor sela yang kosong otomatis dicatat sebagai slot **`Belum Lengkap`** agar mudah dilengkapi menyusul tanpa nomor ganda.
+- **Pratinjau PDF/Gambar Dalam Aplikasi (Bebas *"Request Access"*)**
+  - Proxy dokumen internal terautentikasi (`/api/files/[fileId]`) mengalirkan berkas PDF & gambar langsung dari Google Drive secara aman di dalam modal aplikasi (baik berkas baru maupun arsip lama Apps Script), sembari menjaga folder Google Drive sekolah **100% Privat**.
+- **Mendukung Penuh Akun `@gmail.com` Sekolah Gratis (15 GB)**
+  - Menggunakan kredensial **OAuth2 Refresh Token** sehingga unggahan berkas PDF menggunakan kuota 15 GB akun Gmail sekolah tanpa kendala `storageQuotaExceeded` milik Service Account, plus otomatis mengelompokkan berkas ke subfolder tahun (`2026`, `2027`, dst.) dan memindahkan berkas terhapus ke Trash (aman dipulihkan 30 hari).
+- **Disposisi Digital Cepat & Kustomisasi Admin**
+  - Pilihan chip tujuan disposisi Surat Masuk yang tersimpan di tab khusus **`Disposisi`** pada Google Spreadsheet dan dapat ditambah/diubah/dinonaktifkan langsung oleh Admin.
+- **Keamanan Sesi `httpOnly` & RBAC Ketat**
+  - Hash PIN kompatibel 100% dengan sistem lama Apps Script (`'h' + SHA256(SALT + pin)`), sesi cookie `httpOnly` berpenanda tangan HMAC-SHA256 (**12 jam** standar / opsi **7 hari** perangkat tepercaya), proteksi percobaan PIN salah, serta pembatasan rute Admin (`/pegawai` & `/pengaturan`) di tingkat server dan antarmuka.
+- **Antarmuka Modern, Responsif Mobile, & Dark Mode**
+  - Desain adaptif (Tabel pada layar Desktop, Kartu ringkas + *Bottom Navigation* pada layar HP) lengkap dengan mode terang/gelap tanpa *flicker* dan ekspor laporan CSV ber-BOM UTF-8 siap buka di Microsoft Excel.
+- **Dual-Mode (`USE_MOCK=true` vs `USE_MOCK=false`)**
+  - Berjalan instan sebagai aplikasi demo portofolio tanpa kredensial (`USE_MOCK=true`), dan beralih ke database Google Sheets + Google Drive nyata hanya dengan mengganti variabel lingkungan (`USE_MOCK=false`).
+
+---
+
+## Tumpukan Teknologi
+
+| Lapisan | Teknologi |
+|---|---|
+| Framework | Next.js 16.2 (App Router, `src/` directory, Server Route Handlers & `proxy.ts`) |
+| Bahasa | TypeScript 5.9 (Strict Mode) |
+| UI & Styling | Tailwind CSS v4, shadcn/ui, Radix UI, Lucide Icons, Sonner Toast, next-themes |
+| Keamanan | Web Crypto HMAC-SHA256 `httpOnly` Cookie Session + SHA-256 Salted PIN + Server RBAC |
+| Cloud Storage | Native REST Google Sheets API v4 & Google Drive API v3 (Zero-bloat, OAuth2 Refresh Token & Service Account support) |
+| CI/CD | GitHub Actions (`ci.yml` + `sync-release.yml` auto-mirror ke organisasi sekolah) + Vercel |
+
+---
+
+## Cara Menjalankan Cepat (Mode Demo)
 
 ```bash
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
 Buka `http://localhost:3000`:
-- Login **Admin Tata Usaha** → PIN demo: `123456` (akses penuh termasuk *Manajemen Pegawai* & *Pengaturan*)
-- Login **Pegawai** (*Budi Santoso, S.Pd* / *Siti Rahayu, M.Pd*) → PIN demo: `654321` (akses operasional harian + *Ubah PIN Saya*)
+- **Admin Tata Usaha** — PIN: `123456`
+- **Pegawai (`Budi Santoso, S.Pd`)** — PIN: `654321`
 
-## Fitur Unggulan
-- **Autentikasi PIN SHA-256 + Session `httpOnly` Hybrid (12 Jam / 7 Hari):** Sesi default otomatis terkunci setelah 12 jam demi keamanan komputer bersama ruang TU, disertai opsi *Ingat perangkat ini selama 7 hari* untuk HP/laptop pribadi, proteksi ketat rute Admin, dan fitur **Ubah PIN Saya**.
-- **Mobile-Friendly Card View & Desktop Table:** Tabel lengkap di layar desktop dan kartu interaktif ramah jempol di layar HP tanpa perlu menggeser tabel ke samping.
-- **Dark / Light Mode dengan Transisi Halus & Favicon Kustom:** Nyaman di mata siang maupun malam, sementara hasil cetak Buku Agenda tetap otomatis hitam-putih resmi.
-- **Sakelar Pengaman Lompat Nomor Urut + Slot Pengingat:** Nomor urut terkunci otomatis sesuai urutan berikutnya (dan kembali ke `001` tiap tahun baru). Jika ada arsip fisik terselip, sakelar **Lompati Nomor Urut** memunculkan peringatan jelas dan membuat slot **`Belum Lengkap`**.
-- **Admin CRUD Tujuan Disposisi & Nama Aplikasi Editable:** Kelola daftar jabatan tujuan disposisi Surat Masuk, nama aplikasi, serta profil sekolah langsung dari menu Pengaturan.
-- **In-App Document Preview & Cetak Buku Agenda Berbahasa Indonesia:** Pratinjau berkas scan PDF/gambar langsung di dalam aplikasi serta format tanggal resmi Indonesia (`24 November 2026`).
+Untuk panduan menghubungkan ke **Google Spreadsheet & Google Drive sekolah (`@gmail.com` 15 GB)** dan deploy ke **Vercel**, baca selengkapnya di **[INSTALASI.md](./INSTALASI.md)**.
 
-## Dokumentasi Lengkap
-- [`INSTALASI.md`](./INSTALASI.md) — Panduan instalasi untuk pengguna lain (Mode Demo & Setup Google Workspace + Vercel).
-- [`panduan.md`](./panduan.md) — Panduan SDLC owner: workflow branch baru, Pull Request, CI/CD, dan auto-mirror rilis ke GitHub sekolah.
+---
+
+## Struktur Proyek
+
+```text
+src/
+├── app/
+│   ├── (app)/               # Halaman terproteksi (Dashboard, Surat Keluar/Masuk, Pegawai, Pengaturan)
+│   ├── api/                 # Route Handlers (auth, bootstrap, surat, files/[fileId], users, pengaturan, klasifikasi, disposisi)
+│   └── login/               # Halaman masuk berbasis PIN & opsi sesi 12 jam / 7 hari
+├── components/
+│   ├── layout/              # Sidebar Desktop, Topbar, Bottom Nav Mobile, Dialog Ganti PIN
+│   ├── shared/              # Tabel/Kartu Surat, Modal Pratinjau PDF Proxy, Theme Toggle
+│   └── ui/                  # Komponen dasar shadcn/ui
+├── context/
+│   └── app-context.tsx      # Sinkronisasi state klien <-> REST API
+├── lib/
+│   ├── auth.ts              # Hash PIN (kompatibel Apps Script) & verifikasi token HMAC-SHA256
+│   ├── google.ts            # Token provider OAuth2 Refresh Token (@gmail.com) & Service Account
+│   ├── sheets-db.ts         # Klien Google Sheets API v4 + auto-migrasi tab & audit Log
+│   ├── drive-storage.ts     # Klien Google Drive API v3 (subfolder tahun, multipart upload, stream proxy)
+│   ├── repository.ts        # Repositori terpadu Dual-Mode (Mock Memory vs Google Cloud)
+│   └── server-users.ts      # Manajemen akun & proteksi brute-force PIN
+└── proxy.ts                 # Guard rute server Next.js 16 & RBAC Admin
+```
+
+---
 
 ## Lisensi
-MIT
+
+Dirilis di bawah lisensi [MIT](./LICENSE).
