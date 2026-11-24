@@ -15,7 +15,13 @@ import {
   Send,
 } from "lucide-react";
 import { useApp } from "@/context/app-context";
-import { formatNomorSurat, formatTanggalIndo } from "@/lib/utils";
+import {
+  formatNomorSurat,
+  formatTanggalIndo,
+  getAvailableYears,
+  getCurrentYearWib,
+  getTodayIsoWib,
+} from "@/lib/utils";
 import { KlasifikasiCombobox } from "@/components/shared/klasifikasi-combobox";
 import { PageHeader } from "@/components/shared/page-header";
 import { DashboardSkeleton } from "@/components/shared/page-skeletons";
@@ -60,9 +66,15 @@ const BULAN_LABELS = [
 export default function DashboardPage() {
   const { suratList, klasifikasiList, pengaturan, getNextUrut } = useApp();
   const [initialLoading, setInitialLoading] = useState(true);
-  const [tahun, setTahun] = useState("2026");
+  const currentYear = getCurrentYearWib();
+  const [tahun, setTahun] = useState(() => String(currentYear));
   const [jenisPreview, setJenisPreview] = useState(klasifikasiList[0]?.kode ?? "B");
   const [copied, setCopied] = useState(false);
+
+  const availableYears = useMemo(
+    () => getAvailableYears(suratList.map((s) => s.tahun)),
+    [suratList]
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => setInitialLoading(false), 240);
@@ -87,7 +99,9 @@ export default function DashboardPage() {
 
   const nextUrut = getNextUrut(tahunNum);
   const nextNomor = useMemo(() => {
-    const sampleDate = tahunNum >= 2027 ? `${tahun}-01-02` : `${tahun}-11-23`;
+    const todayWib = getTodayIsoWib();
+    const sampleDate =
+      tahunNum === Number(todayWib.slice(0, 4)) ? todayWib : `${tahun}-01-02`;
     return formatNomorSurat(
       pengaturan.format,
       pengaturan.pad,
@@ -146,13 +160,15 @@ export default function DashboardPage() {
         theme="indigo"
         actions={
           <Select value={tahun} onValueChange={setTahun}>
-            <SelectTrigger className="w-full sm:w-44">
+            <SelectTrigger className="w-full sm:w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="2027">Tahun 2027 (Baru)</SelectItem>
-              <SelectItem value="2026">Tahun 2026</SelectItem>
-              <SelectItem value="2025">Tahun 2025</SelectItem>
+              {availableYears.map((yr) => (
+                <SelectItem key={yr} value={String(yr)}>
+                  Tahun {yr}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         }
@@ -257,7 +273,8 @@ export default function DashboardPage() {
             </div>
             <p className="text-muted-foreground text-xs">
               Urutan ke-<b>{String(nextUrut).padStart(pengaturan.pad, "0")}</b> di tahun {tahun}.
-              Pilih tahun <b>2027</b> di kanan atas untuk melihat simulasi reset tahun baru.
+              Nomor urut otomatis kembali mulai dari{" "}
+              <b>{String(1).padStart(pengaturan.pad, "0")}</b> setiap pergantian tahun baru.
             </p>
           </div>
 

@@ -21,7 +21,13 @@ import {
 import { useApp } from "@/context/app-context";
 import { THEMES } from "@/lib/theme";
 import type { DisposisiJabatan, Klasifikasi } from "@/lib/types";
-import { formatNomorSurat, formatTanggalIndo, parseDisposisi } from "@/lib/utils";
+import {
+  formatNomorSurat,
+  formatTanggalIndo,
+  getCurrentYearWib,
+  getTodayIsoWib,
+  parseDisposisi,
+} from "@/lib/utils";
 import { FormatNomorBuilder } from "@/components/shared/format-nomor-builder";
 import { PageHeader } from "@/components/shared/page-header";
 import { TablePageSkeleton } from "@/components/shared/page-skeletons";
@@ -147,14 +153,17 @@ export default function PengaturanPage() {
     return () => clearTimeout(timer);
   }, [isAuthLoading, currentUser.role, router]);
 
-  const samplePreview2026 = useMemo(
-    () => formatNomorSurat(format, Number(pad) || 3, 12, "SK", "2026-11-23"),
+  const currentYear = getCurrentYearWib();
+  const nextYear = currentYear + 1;
+
+  const samplePreviewCurrentYear = useMemo(
+    () => formatNomorSurat(format, Number(pad) || 3, 12, "SK", getTodayIsoWib()),
     [format, pad]
   );
 
-  const samplePreview2027 = useMemo(
-    () => formatNomorSurat(format, Number(pad) || 3, 1, "SK", "2027-01-02"),
-    [format, pad]
+  const samplePreviewNextYear = useMemo(
+    () => formatNomorSurat(format, Number(pad) || 3, 1, "SK", `${nextYear}-01-02`),
+    [format, pad, nextYear]
   );
 
   const sortedKlasifikasi = useMemo(() => {
@@ -545,18 +554,18 @@ export default function PengaturanPage() {
                     <div className="mt-1.5 space-y-1 font-mono text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="text-muted-foreground font-sans text-xs">
-                          Tahun berjalan (2026):
+                          Tahun berjalan ({currentYear}):
                         </span>
                         <b className="break-all text-violet-950 dark:text-violet-100">
-                          {samplePreview2026}
+                          {samplePreviewCurrentYear}
                         </b>
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="font-sans text-xs text-emerald-700 dark:text-emerald-400">
-                          Awal tahun baru (2027):
+                          Awal tahun baru ({nextYear}):
                         </span>
                         <b className="break-all text-emerald-800 dark:text-emerald-300">
-                          {samplePreview2027}
+                          {samplePreviewNextYear}
                         </b>
                       </div>
                     </div>
