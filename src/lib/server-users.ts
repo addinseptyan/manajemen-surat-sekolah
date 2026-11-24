@@ -1,34 +1,78 @@
+import crypto from "node:crypto";
 import { INITIAL_USERS } from "./mock-data";
 import { hashPin, isValidPinFormat, safeEqual } from "./auth";
+import { isDemoMode } from "./google";
+import {
+  appendAuditLog,
+  appendSheetRows,
+  deleteSheetRow,
+  normalizeSheetDate,
+  readSheetRows,
+  updateSheetRow,
+} from "./sheets-db";
 import type { Role, User } from "./types";
 
 interface StoredUserRecord extends User {
   pinHash: string;
+  _row?: number;
 }
 
 export const DEMO_ADMIN_PIN = "123456";
 export const DEMO_PEGAWAI_PIN = "654321";
 
-// Penyimpanan in-memory sisi server untuk Mode Demo (USE_MOCK !== 'false').
-// Pada PR #6 nanti, saat USE_MOCK === 'false', fungsi-fungsi async di bawah langsung membaca/menulis tab `Users` di Google Sheets!
+export { isDemoMode };
+
 const globalForUsers = globalThis as unknown as {
   __demoUsersStore?: StoredUserRecord[];
 };
 
-export function isDemoMode(): boolean {
-  return process.env.USE_MOCK !== "false";
+function parseSheetBool(raw: string | undefined, defaultVal = true): boolean {
+  if (raw === undefined || raw === "") return defaultVal;
+  const v = raw.trim().toLowerCase();
+  if (v === "false" || v === "0" || v === "tidak") return false;
+  return true;
 }
 
-async function getDemoStore(): Promise<StoredUserRecord[]> {
-  if (!globalForUsers.__demoUsersStore) {
-    const adminHash = await hashPin(DEMO_ADMIN_PIN);
-    const pegawaiHash = await hashPin(DEMO_PEGAWAI_PIN);
-    globalForUsers.__demoUsersStore = INITIAL_USERS.map((u) => ({
-      ...u,
-      pinHash: u.role === "admin" ? adminHash : pegawaiHash,
-    }));
+async function getAllStoredUsers(): Promise<StoredUserRecord[]> {
+  if (isDemoMode()) {
+    if (!globalForUsers.__demoUsersStore) {
+      const adminHash = await hashPin(DEMO_ADMIN_PIN);
+      const pegawaiHash = await hashPin(DEMO_PEGAWAI_PIN);
+      globalForUsers.__demoUsersStore = INITIAL_USERS.map((u) => ({
+        ...u,
+        pinHash: u.role === "admin" ? adminHash : pegawaiHash,
+      }));
+    }
+    return globalForUsers.__demoUsersStore;
   }
-  return globalForUsers.__demoUsersStore;
+
+  let rows = await readSheetRows("Users");
+  if (rows.length === 0) {
+    // Jika Spreadsheet baru & tab Users masih kosong, buat akun Admin awal (PIN 123456) seperti setup() di Config.gs
+    const adminHash = await hashPin("123456");
+    const today = new Date().toISOString().slice(0, 10);
+    await appendSheetRows("Users", [
+      {
+        id: crypto.randomUUID(),
+        nama: "Admin",
+        role: "admin",
+        pinHash: adminHash,
+        aktif: true,
+        dibuat: today,
+      },
+    ]);
+    rows = await readSheetRows("Users");
+  }
+
+  return rows.map((r) => ({
+    _row: r._row,
+    id: r.id,
+    nama: r.nama,
+    role: r.role === "admin" ? "admin" : "pegawai",
+    pinHash: r.pinHash || "",
+    aktif: parseSheetBool(r.aktif, true),
+    dibuat: normalizeSheetDate(r.dibuat),
+  }));
 }
 
 function toPublicUser(u: StoredUserRecord): User {
@@ -41,23 +85,22 @@ function toPublicUser(u: StoredUserRecord): User {
   };
 }
 
-/** Sesuai action 'publicUsers' di Code.gs: hanya akun aktif & tanpa membocorkan pinHash. */
 export async function listPublicActiveUsers(): Promise<
   Array<{ id: string; nama: string; role: Role }>
 > {
-  const store = await getDemoStore();
+  const store = await getAllStoredUsers();
   return store
     .filter((u) => u.aktif !== false)
     .map((u) => ({ id: u.id, nama: u.nama, role: u.role }));
 }
 
 export async function listAllUsersForAdmin(): Promise<User[]> {
-  const store = await getDemoStore();
+  const store = await getAllStoredUsers();
   return store.map(toPublicUser);
 }
 
 export async function findActiveUserById(id: string): Promise<User | null> {
-  const store = await getDemoStore();
+  const store = await getAllStoredUsers();
   const found = store.find((u) => u.id === id && u.aktif !== false);
   return found ? toPublicUser(found) : null;
 }
@@ -67,9 +110,9 @@ export async function verifyUserCredentials(
   pin: string
 ): Promise<{ ok: true; user: User } | { ok: false; error: string }> {
   if (!id || !pin) {
-    return { ok: false, error: "Pilih nama pegawai dan masukkan PIN." };
+    return { ok: false, error: "Pilih nama pengguna dan masukkan PIN." };
   }
-  const store = await getDemoStore();
+  const store = await getAllStoredUsers();
   const candidateHash = await hashPin(String(pin));
   const found = store.find(
     (u) => u.id === id && u.aktif !== false && safeEqual(u.pinHash, candidateHash)
@@ -77,19 +120,18 @@ export async function verifyUserCredentials(
   if (!found) {
     return { ok: false, error: "PIN salah atau akun sudah tidak aktif." };
   }
+  if (!isDemoMode()) {
+    void appendAuditLog(found.nama, "login", "");
+  }
   return { ok: true, user: toPublicUser(found) };
 }
 
-/**
- * Fitur Ubah PIN Sendiri (untuk Admin maupun Pegawai).
- * Tetap mematuhi aturan Users.gs: 4-8 angka & PIN Admin tidak boleh sama dengan PIN Pegawai.
- */
 export async function changeOwnPin(
   userId: string,
   pinLama: string,
   pinBaru: string
 ): Promise<{ ok: boolean; error?: string }> {
-  const store = await getDemoStore();
+  const store = await getAllStoredUsers();
   const target = store.find((u) => u.id === userId && u.aktif !== false);
   if (!target) {
     return { ok: false, error: "Akun pengguna tidak ditemukan." };
@@ -109,7 +151,6 @@ export async function changeOwnPin(
     return { ok: false, error: "PIN baru harus berbeda dari PIN lama." };
   }
 
-  // Aturan Users.gs: PIN admin harus berbeda dari semua PIN pegawai (dan sebaliknya)
   const crossRoleConflict = store.some(
     (u) => u.id !== target.id && u.role !== target.role && safeEqual(u.pinHash, newHash)
   );
@@ -120,17 +161,23 @@ export async function changeOwnPin(
     };
   }
 
-  target.pinHash = newHash;
+  if (isDemoMode()) {
+    target.pinHash = newHash;
+  } else if (target._row) {
+    await updateSheetRow("Users", target._row, {
+      id: target.id,
+      nama: target.nama,
+      role: target.role,
+      pinHash: newHash,
+      aktif: target.aktif,
+      dibuat: target.dibuat,
+    });
+    void appendAuditLog(target.nama, "user.changePin", target.nama);
+  }
+
   return { ok: true };
 }
 
-/**
- * Sesuai saveUser_ di Users.gs:
- * - PIN wajib untuk pengguna baru (4-8 angka)
- * - PIN admin dan pegawai tidak boleh sama
- * - Minimal harus ada 1 admin aktif
- * - Admin tidak dapat menonaktifkan atau menurunkan peran akunnya sendiri
- */
 export async function upsertUserByAdmin(
   adminId: string,
   input: {
@@ -146,7 +193,8 @@ export async function upsertUserByAdmin(
     return { ok: false, error: "Nama lengkap dan peran wajib diisi." };
   }
 
-  const store = await getDemoStore();
+  const store = await getAllStoredUsers();
+  const adminUser = store.find((u) => u.id === adminId);
   const existing = input.id ? store.find((u) => u.id === input.id) : undefined;
 
   if (existing && existing.id === adminId) {
@@ -158,7 +206,6 @@ export async function upsertUserByAdmin(
     }
   }
 
-  // Pastikan minimal tetap ada 1 admin aktif
   if (existing && existing.role === "admin" && (input.role !== "admin" || !input.aktif)) {
     const otherActiveAdmins = store.filter(
       (u) => u.id !== existing.id && u.role === "admin" && u.aktif !== false
@@ -180,7 +227,6 @@ export async function upsertUserByAdmin(
     return { ok: false, error: "PIN awal wajib diisi untuk pegawai baru." };
   }
 
-  // Cek konflik PIN lintas role (termasuk bila role diubah tanpa ganti PIN!)
   if (nextPinHash) {
     const crossRoleConflict = store.some(
       (u) =>
@@ -197,31 +243,72 @@ export async function upsertUserByAdmin(
   }
 
   if (existing) {
-    existing.nama = cleanNama;
-    existing.role = input.role;
-    existing.pinHash = nextPinHash;
-    existing.aktif = input.aktif;
-    return { ok: true, user: toPublicUser(existing) };
+    if (isDemoMode()) {
+      existing.nama = cleanNama;
+      existing.role = input.role;
+      existing.pinHash = nextPinHash;
+      existing.aktif = input.aktif;
+      return { ok: true, user: toPublicUser(existing) };
+    }
+
+    if (existing._row) {
+      await updateSheetRow("Users", existing._row, {
+        id: existing.id,
+        nama: cleanNama,
+        role: input.role,
+        pinHash: nextPinHash,
+        aktif: input.aktif,
+        dibuat: existing.dibuat,
+      });
+      void appendAuditLog(adminUser?.nama || "Admin", "user.save", cleanNama);
+    }
+
+    return {
+      ok: true,
+      user: {
+        id: existing.id,
+        nama: cleanNama,
+        role: input.role,
+        aktif: input.aktif,
+        dibuat: existing.dibuat,
+      },
+    };
   }
 
   const created: StoredUserRecord = {
-    id: `u-${Date.now()}`,
+    id: crypto.randomUUID(),
     nama: cleanNama,
     role: input.role,
     pinHash: nextPinHash,
     aktif: input.aktif,
     dibuat: new Date().toISOString().slice(0, 10),
   };
-  store.push(created);
+
+  if (isDemoMode()) {
+    store.push(created);
+  } else {
+    await appendSheetRows("Users", [
+      {
+        id: created.id,
+        nama: created.nama,
+        role: created.role,
+        pinHash: created.pinHash,
+        aktif: created.aktif,
+        dibuat: created.dibuat,
+      },
+    ]);
+    void appendAuditLog(adminUser?.nama || "Admin", "user.save", created.nama);
+  }
+
   return { ok: true, user: toPublicUser(created) };
 }
 
-/** Sesuai deleteUser_ di Users.gs: tidak bisa hapus diri sendiri & minimal tersisa 1 admin aktif. */
 export async function deleteUserByAdmin(
   adminId: string,
   targetId: string
 ): Promise<{ ok: boolean; error?: string }> {
-  const store = await getDemoStore();
+  const store = await getAllStoredUsers();
+  const adminUser = store.find((u) => u.id === adminId);
   const idx = store.findIndex((u) => u.id === targetId);
   if (idx === -1) {
     return { ok: false, error: "Akun pegawai tidak ditemukan." };
@@ -238,6 +325,13 @@ export async function deleteUserByAdmin(
       return { ok: false, error: "Minimal harus ada 1 Admin aktif." };
     }
   }
-  store.splice(idx, 1);
+
+  if (isDemoMode()) {
+    store.splice(idx, 1);
+  } else if (target._row) {
+    await deleteSheetRow("Users", target._row);
+    void appendAuditLog(adminUser?.nama || "Admin", "user.delete", target.nama);
+  }
+
   return { ok: true };
 }

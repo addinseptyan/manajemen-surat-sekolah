@@ -50,6 +50,10 @@ export default function LoginPage() {
   const [demoPins, setDemoPins] = useState<{ adminPin: string; pegawaiPin: string } | null>(
     null
   );
+  const [brandInfo, setBrandInfo] = useState<{
+    namaAplikasi: string;
+    namaSekolah: string;
+  } | null>(null);
 
   const [selectedUserId, setSelectedUserId] = useState("");
   const [pin, setPin] = useState("");
@@ -67,9 +71,11 @@ export default function LoginPage() {
           demoMode?: boolean;
           demoHints?: { adminPin: string; pegawaiPin: string };
           users?: PublicUserOption[];
+          brand?: { namaAplikasi: string; namaSekolah: string };
         };
         if (!cancelled && data.ok && data.users) {
           setPublicUsers(data.users);
+          if (data.brand) setBrandInfo(data.brand);
           const demoFlag = Boolean(data.demoMode);
           setIsDemo(demoFlag);
           setDemoPins(data.demoHints ?? null);
@@ -178,10 +184,10 @@ export default function LoginPage() {
             </Badge>
           )}
           <h1 className="text-foreground text-2xl font-bold tracking-tight">
-            {pengaturan.namaAplikasi}
+            {brandInfo?.namaAplikasi || pengaturan.namaAplikasi}
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            {pengaturan.namaSekolah} — Arsip &amp; penomoran surat digital
+            {brandInfo?.namaSekolah || pengaturan.namaSekolah} — Arsip &amp; penomoran surat digital
           </p>
         </div>
 

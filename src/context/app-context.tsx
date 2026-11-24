@@ -26,7 +26,6 @@ import type {
   Surat,
   User,
 } from "@/lib/types";
-import { formatNomorSurat } from "@/lib/utils";
 
 export interface SaveSuratInput {
   id?: string;
@@ -38,20 +37,21 @@ export interface SaveSuratInput {
   pihak: string;
   perihal: string;
   catatan: string;
-  fileName?: string;
-  fileUrl?: string;
-  fileMime?: string;
+  file?: File;
 }
 
 export interface SaveSuratResult {
-  saved: Surat;
+  ok: boolean;
+  saved?: Surat;
   generatedGaps: number[];
+  error?: string;
 }
 
 interface AppContextValue {
   currentUser: User;
   isAuthenticated: boolean;
   isAuthLoading: boolean;
+  isDataLoading: boolean;
   demoMode: boolean;
   users: User[];
   suratList: Surat[];
@@ -68,20 +68,26 @@ interface AppContextValue {
     pinLama: string,
     pinBaru: string
   ) => Promise<{ ok: boolean; error?: string }>;
+  refreshBootstrap: () => Promise<void>;
   refreshUsers: () => Promise<void>;
   getNextUrut: (tahun: number) => number;
   getMissingUrutBefore: (tahun: number, targetUrut: number) => number[];
-  saveSurat: (input: SaveSuratInput) => SaveSuratResult;
-  deleteSurat: (id: string) => void;
-  savePengaturan: (next: Pengaturan) => void;
-  saveKlasifikasi: (item: Klasifikasi, oldKode?: string) => { ok: boolean; error?: string };
-  deleteKlasifikasi: (kode: string) => { ok: boolean; error?: string };
+  saveSurat: (input: SaveSuratInput) => Promise<SaveSuratResult>;
+  deleteSurat: (id: string) => Promise<{ ok: boolean; error?: string }>;
+  savePengaturan: (
+    next: Pengaturan
+  ) => Promise<{ ok: boolean; error?: string }>;
+  saveKlasifikasi: (
+    item: Klasifikasi,
+    oldKode?: string
+  ) => Promise<{ ok: boolean; error?: string }>;
+  deleteKlasifikasi: (kode: string) => Promise<{ ok: boolean; error?: string }>;
   saveDisposisi: (input: {
     id?: string;
     nama: string;
     aktif: boolean;
-  }) => { ok: boolean; error?: string };
-  deleteDisposisi: (id: string) => void;
+  }) => Promise<{ ok: boolean; error?: string }>;
+  deleteDisposisi: (id: string) => Promise<{ ok: boolean; error?: string }>;
   saveUser: (input: {
     id?: string;
     nama: string;
@@ -98,7 +104,7 @@ interface AppContextValue {
 
 function sortKlasifikasi(list: Klasifikasi[]): Klasifikasi[] {
   return [...list].sort((a, b) =>
-    a.kode.localeCompare(b.kode, "id", { sensitivity: "base" })
+    a.kode.localeCompare(b.kode, "id", { sensitivity: "base", numeric: true })
   );
 }
 
@@ -109,15 +115,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+  const [isDataLoading, setIsDataLoading] = useState<boolean>(true);
   const [demoMode, setDemoMode] = useState<boolean>(true);
 
   const [suratList, setSuratList] = useState<Surat[]>(INITIAL_SURAT);
-  const [rawKlasifikasi, setRawKlasifikasi] = useState<Klasifikasi[]>(INITIAL_KLASIFIKASI);
+  const [rawKlasifikasi, setRawKlasifikasi] =
+    useState<Klasifikasi[]>(INITIAL_KLASIFIKASI);
   const [disposisiList, setDisposisiList] =
     useState<DisposisiJabatan[]>(INITIAL_DISPOSISI);
   const [pengaturan, setPengaturan] = useState<Pengaturan>(INITIAL_PENGATURAN);
 
-  const klasifikasiList = useMemo(() => sortKlasifikasi(rawKlasifikasi), [rawKlasifikasi]);
+  const klasifikasiList = useMemo(
+    () => sortKlasifikasi(rawKlasifikasi),
+    [rawKlasifikasi]
+  );
   const currentUser = authUser ?? INITIAL_USERS[0];
   const isAuthenticated = Boolean(authUser);
 
@@ -138,50 +149,60 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Sinkronisasi sesi aktif dari httpOnly cookie
-  useEffect(() => {
-    if (pathname === "/login") {
-      setIsAuthLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    async function checkSession() {
-      try {
-        const res = await fetch("/api/auth/me", { cache: "no-store" });
-        if (!res.ok) {
-          if (!cancelled) {
-            setAuthUser(null);
-            setIsAuthLoading(false);
-          }
-          return;
+  const refreshBootstrap = useCallback(async () => {
+    setIsDataLoading(true);
+    try {
+      const res = await fetch("/api/bootstrap", { cache: "no-store" });
+      if (!res.ok) {
+        if (res.status === 401) {
+          setAuthUser(null);
         }
-        const data = (await res.json()) as {
-          ok: boolean;
-          demoMode?: boolean;
-          user?: User;
-        };
-        if (!cancelled && data.ok && data.user) {
+        return;
+      }
+      const data = (await res.json()) as {
+        ok: boolean;
+        demoMode?: boolean;
+        user?: User;
+        suratList?: Surat[];
+        klasifikasiList?: Klasifikasi[];
+        disposisiList?: DisposisiJabatan[];
+        pengaturan?: Pengaturan;
+      };
+      if (data.ok) {
+        if (typeof data.demoMode === "boolean") setDemoMode(data.demoMode);
+        if (data.user) {
           setAuthUser(data.user);
-          if (typeof data.demoMode === "boolean") setDemoMode(data.demoMode);
           if (data.user.role === "admin") {
             void refreshUsers();
           }
         }
-      } catch {
-        // Pertahankan state bila gagal fetch
-      } finally {
-        if (!cancelled) setIsAuthLoading(false);
+        if (data.suratList) setSuratList(data.suratList);
+        if (data.klasifikasiList) setRawKlasifikasi(data.klasifikasiList);
+        if (data.disposisiList) setDisposisiList(data.disposisiList);
+        if (data.pengaturan) setPengaturan(data.pengaturan);
       }
+    } catch {
+      // Pertahankan state terakhir jika offline sementara
+    } finally {
+      setIsAuthLoading(false);
+      setIsDataLoading(false);
     }
+  }, [refreshUsers]);
 
-    void checkSession();
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname, refreshUsers]);
+  useEffect(() => {
+    if (pathname === "/login") {
+      setIsAuthLoading(false);
+      setIsDataLoading(false);
+      return;
+    }
+    void refreshBootstrap();
+  }, [pathname, refreshBootstrap]);
 
-  async function loginWithPin(input: { id: string; pin: string; remember: boolean }) {
+  async function loginWithPin(input: {
+    id: string;
+    pin: string;
+    remember: boolean;
+  }) {
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -197,9 +218,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return { ok: false, error: data.error || "PIN salah." };
       }
       setAuthUser(data.user);
-      if (data.user.role === "admin") {
-        void refreshUsers();
-      }
+      void refreshBootstrap();
       return { ok: true, user: data.user };
     } catch {
       return { ok: false, error: "Gagal menghubungi server autentikasi." };
@@ -233,7 +252,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   function getNextUrut(tahun: number): number {
     const maxUrut = suratList
-      .filter((s) => s.arah === "keluar" && s.tahun === tahun && typeof s.urut === "number")
+      .filter(
+        (s) =>
+          s.arah === "keluar" &&
+          s.tahun === tahun &&
+          typeof s.urut === "number"
+      )
       .reduce((max, s) => Math.max(max, Number(s.urut) || 0), 0);
     return maxUrut + 1;
   }
@@ -242,7 +266,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (targetUrut <= 1) return [];
     const existing = new Set(
       suratList
-        .filter((s) => s.arah === "keluar" && s.tahun === tahun && typeof s.urut === "number")
+        .filter(
+          (s) =>
+            s.arah === "keluar" &&
+            s.tahun === tahun &&
+            typeof s.urut === "number"
+        )
         .map((s) => Number(s.urut))
     );
     const gaps: number[] = [];
@@ -252,218 +281,200 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return gaps;
   }
 
-  function saveSurat(input: SaveSuratInput): SaveSuratResult {
-    const tahun = Number(input.tanggal.slice(0, 4)) || new Date().getFullYear();
-    const today = new Date().toISOString().slice(0, 10);
-
-    if (input.id) {
-      let updatedItem!: Surat;
-      setSuratList((prev) =>
-        prev.map((item) => {
-          if (item.id !== input.id) return item;
-          const finalUrut =
-            item.arah === "keluar"
-              ? input.urutManual ?? (typeof item.urut === "number" ? item.urut : 1)
-              : "";
-          const nextNomor =
-            item.arah === "keluar" && typeof finalUrut === "number"
-              ? input.nomorManual?.trim() ||
-                formatNomorSurat(
-                  pengaturan.format,
-                  pengaturan.pad,
-                  finalUrut,
-                  input.jenis,
-                  input.tanggal
-                )
-              : input.nomorManual ?? item.nomor;
-
-          updatedItem = {
-            ...item,
-            urut: finalUrut,
-            jenis: item.arah === "keluar" ? input.jenis : "",
-            nomor: nextNomor,
-            tahun,
-            tanggal: input.tanggal,
-            pihak: input.pihak,
-            perihal: input.perihal,
-            catatan: input.catatan,
-            fileName: input.fileName ?? item.fileName,
-            fileUrl:
-              input.fileUrl ??
-              (input.fileName ? item.fileUrl || "#demo-file" : item.fileUrl),
-            fileMime: input.fileMime ?? item.fileMime,
-            status: "Lengkap",
-            pembuat:
-              item.status === "Belum Lengkap" ? currentUser.nama : item.pembuat,
-          };
-          return updatedItem;
-        })
-      );
-      return { saved: updatedItem, generatedGaps: [] };
-    }
-
-    const targetUrut =
-      input.arah === "keluar"
-        ? Math.max(1, input.urutManual ?? getNextUrut(tahun))
-        : ("" as const);
-
-    if (input.arah === "keluar" && typeof targetUrut === "number") {
-      const existingGapSlot = suratList.find(
-        (s) =>
-          s.arah === "keluar" &&
-          s.tahun === tahun &&
-          s.urut === targetUrut &&
-          s.status === "Belum Lengkap"
-      );
-      if (existingGapSlot) {
-        return saveSurat({ ...input, id: existingGapSlot.id, urutManual: targetUrut });
+  async function saveSurat(input: SaveSuratInput): Promise<SaveSuratResult> {
+    try {
+      const fd = new FormData();
+      if (input.id) fd.set("id", input.id);
+      fd.set("arah", input.arah);
+      if (input.urutManual !== undefined) {
+        fd.set("urutManual", String(input.urutManual));
       }
-    }
+      if (input.nomorManual !== undefined) {
+        fd.set("nomorManual", input.nomorManual);
+      }
+      fd.set("jenis", input.jenis);
+      fd.set("tanggal", input.tanggal);
+      fd.set("pihak", input.pihak);
+      fd.set("perihal", input.perihal);
+      fd.set("catatan", input.catatan);
+      if (input.file) {
+        fd.set("file", input.file);
+      }
 
-    const generatedGaps =
-      input.arah === "keluar" && typeof targetUrut === "number"
-        ? getMissingUrutBefore(tahun, targetUrut)
-        : [];
-
-    const gapItems: Surat[] = generatedGaps.map((n) => {
-      const padStr = String(n).padStart(pengaturan.pad, "0");
-      return {
-        id: `gap-${tahun}-${n}-${Date.now()}`,
-        arah: "keluar",
-        nomor: formatNomorSurat(pengaturan.format, pengaturan.pad, n, "---", input.tanggal),
-        urut: n,
-        tahun,
-        jenis: "",
-        tanggal: input.tanggal,
-        pihak: "— (Berkas fisik belum ditemukan)",
-        perihal: `Slot Nomor Urut ${padStr} Kosong — Harap cari arsip fisik & unggah scan`,
-        catatan: `Tergenerate otomatis saat lompat ke nomor ${String(targetUrut).padStart(
-          pengaturan.pad,
-          "0"
-        )}`,
-        fileUrl: "",
-        status: "Belum Lengkap",
-        pembuat: "Sistem Penertiban",
-        dibuat: today,
+      const res = await fetch("/api/surat", {
+        method: "POST",
+        body: fd,
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        saved?: Surat;
+        suratList?: Surat[];
+        generatedGaps?: number[];
+        error?: string;
       };
-    });
-
-    const nomor =
-      input.arah === "keluar" && typeof targetUrut === "number"
-        ? input.nomorManual?.trim() ||
-          formatNomorSurat(
-            pengaturan.format,
-            pengaturan.pad,
-            targetUrut,
-            input.jenis,
-            input.tanggal
-          )
-        : input.nomorManual?.trim() ?? "";
-
-    const created: Surat = {
-      id: `s-${Date.now()}`,
-      arah: input.arah,
-      nomor,
-      urut: targetUrut,
-      tahun,
-      jenis: input.arah === "keluar" ? input.jenis : "",
-      tanggal: input.tanggal,
-      pihak: input.pihak,
-      perihal: input.perihal,
-      catatan: input.catatan,
-      fileName: input.fileName,
-      fileUrl: input.fileUrl ?? (input.fileName ? "#demo-file" : ""),
-      fileMime: input.fileMime,
-      status: "Lengkap",
-      pembuat: currentUser.nama,
-      dibuat: today,
-    };
-
-    setSuratList((prev) => [created, ...gapItems, ...prev]);
-    return { saved: created, generatedGaps };
-  }
-
-  function deleteSurat(id: string) {
-    setSuratList((prev) => prev.filter((s) => s.id !== id));
-  }
-
-  function savePengaturan(next: Pengaturan) {
-    setPengaturan(next);
-  }
-
-  function saveKlasifikasi(item: Klasifikasi, oldKode?: string) {
-    const cleanKode = item.kode.trim();
-    const cleanNama = item.nama.trim();
-    if (!cleanKode || !cleanNama) {
-      return { ok: false, error: "Kode dan nama jenis surat wajib diisi." };
-    }
-    if (oldKode && oldKode !== cleanKode) {
-      const dipakai = suratList.some((s) => s.jenis === oldKode);
-      if (dipakai) {
+      if (!res.ok || !data.ok) {
         return {
           ok: false,
-          error: "Kode sudah dipakai di surat keluar sehingga tidak boleh diubah.",
+          generatedGaps: [],
+          error: data.error || "Gagal menyimpan surat.",
         };
       }
-    }
-    const conflict = rawKlasifikasi.some(
-      (k) => k.kode.toLowerCase() === cleanKode.toLowerCase() && k.kode !== oldKode
-    );
-    if (conflict) {
-      return { ok: false, error: `Kode "${cleanKode}" sudah terdaftar.` };
-    }
-
-    if (oldKode) {
-      setRawKlasifikasi((prev) =>
-        prev.map((k) => (k.kode === oldKode ? { kode: cleanKode, nama: cleanNama } : k))
-      );
-    } else {
-      setRawKlasifikasi((prev) => [...prev, { kode: cleanKode, nama: cleanNama }]);
-    }
-    return { ok: true };
-  }
-
-  function deleteKlasifikasi(kode: string) {
-    const dipakai = suratList.some((s) => s.jenis === kode);
-    if (dipakai) {
+      if (data.suratList) setSuratList(data.suratList);
+      return {
+        ok: true,
+        saved: data.saved,
+        generatedGaps: data.generatedGaps ?? [],
+      };
+    } catch {
       return {
         ok: false,
-        error: "Jenis surat sudah dipakai pada arsip dan tidak dapat dihapus.",
+        generatedGaps: [],
+        error: "Gagal menghubungi server saat menyimpan surat.",
       };
     }
-    setRawKlasifikasi((prev) => prev.filter((k) => k.kode !== kode));
-    return { ok: true };
   }
 
-  function saveDisposisi(input: { id?: string; nama: string; aktif: boolean }) {
-    const clean = input.nama.trim();
-    if (!clean) {
-      return { ok: false, error: "Nama jabatan disposisi wajib diisi." };
+  async function deleteSurat(id: string) {
+    try {
+      const res = await fetch(`/api/surat?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        suratList?: Surat[];
+        error?: string;
+      };
+      if (!res.ok || !data.ok) {
+        return { ok: false, error: data.error || "Gagal menghapus surat." };
+      }
+      if (data.suratList) setSuratList(data.suratList);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Gagal menghubungi server." };
     }
-    const duplicate = disposisiList.some(
-      (d) => d.nama.toLowerCase() === clean.toLowerCase() && d.id !== input.id
-    );
-    if (duplicate) {
-      return { ok: false, error: `"${clean}" sudah ada di daftar disposisi.` };
-    }
+  }
 
-    if (input.id) {
-      setDisposisiList((prev) =>
-        prev.map((d) =>
-          d.id === input.id ? { ...d, nama: clean, aktif: input.aktif } : d
-        )
+  async function savePengaturan(next: Pengaturan) {
+    try {
+      const res = await fetch("/api/pengaturan", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(next),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        pengaturan?: Pengaturan;
+        error?: string;
+      };
+      if (!res.ok || !data.ok) {
+        return { ok: false, error: data.error || "Gagal menyimpan pengaturan." };
+      }
+      if (data.pengaturan) setPengaturan(data.pengaturan);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Gagal menghubungi server." };
+    }
+  }
+
+  async function saveKlasifikasi(item: Klasifikasi, oldKode?: string) {
+    try {
+      const res = await fetch("/api/klasifikasi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...item, oldKode }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        klasifikasiList?: Klasifikasi[];
+        error?: string;
+      };
+      if (!res.ok || !data.ok) {
+        return {
+          ok: false,
+          error: data.error || "Gagal menyimpan klasifikasi.",
+        };
+      }
+      if (data.klasifikasiList) setRawKlasifikasi(data.klasifikasiList);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Gagal menghubungi server." };
+    }
+  }
+
+  async function deleteKlasifikasi(kode: string) {
+    try {
+      const res = await fetch(
+        `/api/klasifikasi?kode=${encodeURIComponent(kode)}`,
+        { method: "DELETE" }
       );
-    } else {
-      setDisposisiList((prev) => [
-        ...prev,
-        { id: `d-${Date.now()}`, nama: clean, aktif: input.aktif },
-      ]);
+      const data = (await res.json()) as {
+        ok: boolean;
+        klasifikasiList?: Klasifikasi[];
+        error?: string;
+      };
+      if (!res.ok || !data.ok) {
+        return {
+          ok: false,
+          error: data.error || "Gagal menghapus klasifikasi.",
+        };
+      }
+      if (data.klasifikasiList) setRawKlasifikasi(data.klasifikasiList);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Gagal menghubungi server." };
     }
-    return { ok: true };
   }
 
-  function deleteDisposisi(id: string) {
-    setDisposisiList((prev) => prev.filter((d) => d.id !== id));
+  async function saveDisposisi(input: {
+    id?: string;
+    nama: string;
+    aktif: boolean;
+  }) {
+    try {
+      const res = await fetch("/api/disposisi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        disposisiList?: DisposisiJabatan[];
+        error?: string;
+      };
+      if (!res.ok || !data.ok) {
+        return {
+          ok: false,
+          error: data.error || "Gagal menyimpan tujuan disposisi.",
+        };
+      }
+      if (data.disposisiList) setDisposisiList(data.disposisiList);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Gagal menghubungi server." };
+    }
+  }
+
+  async function deleteDisposisi(id: string) {
+    try {
+      const res = await fetch(`/api/disposisi?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        disposisiList?: DisposisiJabatan[];
+        error?: string;
+      };
+      if (!res.ok || !data.ok) {
+        return {
+          ok: false,
+          error: data.error || "Gagal menghapus tujuan disposisi.",
+        };
+      }
+      if (data.disposisiList) setDisposisiList(data.disposisiList);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Gagal menghubungi server." };
+    }
   }
 
   async function saveUser(input: {
@@ -486,7 +497,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         error?: string;
       };
       if (!res.ok || !data.ok) {
-        return { ok: false, error: data.error || "Gagal menyimpan akun pegawai." };
+        return {
+          ok: false,
+          error: data.error || "Gagal menyimpan akun pegawai.",
+        };
       }
       if (data.users) setUsers(data.users);
       if (data.user && authUser && data.user.id === authUser.id) {
@@ -533,6 +547,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         currentUser,
         isAuthenticated,
         isAuthLoading,
+        isDataLoading,
         demoMode,
         users,
         suratList,
@@ -542,6 +557,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         loginWithPin,
         logout,
         changeOwnPin,
+        refreshBootstrap,
         refreshUsers,
         getNextUrut,
         getMissingUrutBefore,

@@ -34,7 +34,6 @@ import {
   formatNomorSurat,
   formatTanggalIndo,
   parseDisposisi,
-  sleep,
 } from "@/lib/utils";
 import { DocumentPreviewDialog } from "@/components/shared/document-preview-dialog";
 import { KlasifikasiCombobox } from "@/components/shared/klasifikasi-combobox";
@@ -103,6 +102,7 @@ export function SuratView({ arah }: SuratViewProps) {
   const theme = THEMES[themeKey];
 
   const {
+    isDataLoading,
     suratList,
     klasifikasiList,
     disposisiList,
@@ -142,8 +142,7 @@ export function SuratView({ arah }: SuratViewProps) {
   const [formDisposisi, setFormDisposisi] = useState<string[]>([]);
   const [formCatatan, setFormCatatan] = useState("");
   const [formFileName, setFormFileName] = useState("");
-  const [formFileBlobUrl, setFormFileBlobUrl] = useState<string | undefined>(undefined);
-  const [formFileMime, setFormFileMime] = useState<string | undefined>(undefined);
+  const [formFileObj, setFormFileObj] = useState<File | undefined>(undefined);
 
   // AlertDialog Hapus state
   const [deletingSurat, setDeletingSurat] = useState<Surat | null>(null);
@@ -258,8 +257,7 @@ export function SuratView({ arah }: SuratViewProps) {
     setFormDisposisi([]);
     setFormCatatan("");
     setFormFileName("");
-    setFormFileBlobUrl(undefined);
-    setFormFileMime(undefined);
+    setFormFileObj(undefined);
     setDialogOpen(true);
   }
 
@@ -277,8 +275,7 @@ export function SuratView({ arah }: SuratViewProps) {
     setFormDisposisi(parsed.tags);
     setFormCatatan(isSlot ? "" : parsed.cleanNote);
     setFormFileName(item.fileName ?? "");
-    setFormFileBlobUrl(item.fileUrl?.startsWith("blob:") ? item.fileUrl : undefined);
-    setFormFileMime(item.fileMime);
+    setFormFileObj(undefined);
     setDialogOpen(true);
   }
 
@@ -314,7 +311,6 @@ export function SuratView({ arah }: SuratViewProps) {
     e.preventDefault();
     if (!formPihak.trim() || !formPerihal.trim() || isSaving) return;
     setIsSaving(true);
-    await sleep(280);
 
     const finalCatatan = isKeluar
       ? formCatatan.trim()
@@ -329,7 +325,7 @@ export function SuratView({ arah }: SuratViewProps) {
           ? targetUrutNum
           : undefined;
 
-    const { saved, generatedGaps } = saveSurat({
+    const res = await saveSurat({
       id: editingSurat?.id,
       arah,
       urutManual: effectiveUrut,
@@ -339,13 +335,20 @@ export function SuratView({ arah }: SuratViewProps) {
       pihak: formPihak.trim(),
       perihal: formPerihal.trim(),
       catatan: finalCatatan,
-      fileName: formFileName.trim() || undefined,
-      fileUrl: formFileBlobUrl,
-      fileMime: formFileMime,
+      file: formFileObj,
     });
 
     setIsSaving(false);
+
+    if (!res.ok || !res.saved) {
+      toast.error("Gagal menyimpan surat", {
+        description: res.error ?? "Terjadi kesalahan saat menyimpan.",
+      });
+      return;
+    }
+
     setDialogOpen(false);
+    const { saved, generatedGaps } = res;
 
     const gapNote =
       generatedGaps.length > 0
@@ -366,13 +369,18 @@ export function SuratView({ arah }: SuratViewProps) {
     );
   }
 
-  function handleConfirmDelete() {
+  async function handleConfirmDelete() {
     if (!deletingSurat) return;
-    deleteSurat(deletingSurat.id);
-    toast.success("Baris arsip surat telah dihapus", {
-      description: deletingSurat.nomor || deletingSurat.perihal,
-    });
+    const target = deletingSurat;
     setDeletingSurat(null);
+    const res = await deleteSurat(target.id);
+    if (!res.ok) {
+      toast.error("Gagal menghapus surat", { description: res.error });
+      return;
+    }
+    toast.success("Baris arsip surat telah dihapus", {
+      description: target.nomor || target.perihal,
+    });
   }
 
   function handleExportCsv() {
@@ -408,7 +416,7 @@ export function SuratView({ arah }: SuratViewProps) {
     });
   }
 
-  if (initialLoading) {
+  if (initialLoading || isDataLoading) {
     return <TablePageSkeleton />;
   }
 
@@ -1358,7 +1366,9 @@ export function SuratView({ arah }: SuratViewProps) {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="lampiran">Unggah Scan PDF / Gambar (Langsung Bisa Pratinjau)</Label>
+              <Label htmlFor="lampiran">
+                Unggah Scan PDF / Gambar (Maks. 4 MB · Langsung Pratinjau)
+              </Label>
               <Input
                 id="lampiran"
                 type="file"
@@ -1366,15 +1376,21 @@ export function SuratView({ arah }: SuratViewProps) {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
+                    if (file.size > 4.2 * 1024 * 1024) {
+                      toast.error("Ukuran file terlalu besar", {
+                        description: "Maksimal ukuran scan PDF/gambar adalah 4 MB.",
+                      });
+                      e.target.value = "";
+                      return;
+                    }
                     setFormFileName(file.name);
-                    setFormFileBlobUrl(URL.createObjectURL(file));
-                    setFormFileMime(file.type);
+                    setFormFileObj(file);
                   }
                 }}
               />
               {formFileName && (
                 <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                  Berkas terlampir: {formFileName}
+                  Berkas dipilih: {formFileName}
                 </p>
               )}
             </div>

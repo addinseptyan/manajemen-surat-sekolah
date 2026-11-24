@@ -30,7 +30,10 @@ export function DocumentPreviewDialog({
 
   if (!surat) return null;
 
-  const isRealBlob = surat.fileUrl?.startsWith("blob:");
+  const isProxyFile = surat.fileUrl?.startsWith("/api/files/");
+  const isBlobFile = surat.fileUrl?.startsWith("blob:");
+  const isLiveStream = Boolean(isProxyFile || isBlobFile);
+
   const isImage =
     surat.fileMime?.startsWith("image/") ||
     /\.(png|jpe?g|webp|gif)$/i.test(surat.fileName ?? "");
@@ -39,7 +42,20 @@ export function DocumentPreviewDialog({
   function handleDownload() {
     if (!surat) return;
 
-    if (isRealBlob && surat.fileUrl) {
+    if (isProxyFile) {
+      const a = document.createElement("a");
+      a.href = `${surat.fileUrl}?download=1`;
+      a.download = surat.fileName || `dokumen-${surat.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast.success("Mengunduh berkas asli dari arsip sekolah", {
+        description: surat.fileName || surat.nomor,
+      });
+      return;
+    }
+
+    if (isBlobFile && surat.fileUrl) {
       const a = document.createElement("a");
       a.href = surat.fileUrl;
       a.download = surat.fileName || `dokumen-${surat.id}`;
@@ -92,9 +108,7 @@ export function DocumentPreviewDialog({
     a.download = `${baseName}-demo.html`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Berkas contoh berhasil diunduh", {
-      description: "Pada mode produksi, tombol ini mengunduh PDF/JPG asli dari Google Drive.",
-    });
+    toast.success("Berkas contoh demo berhasil diunduh");
   }
 
   return (
@@ -123,13 +137,14 @@ export function DocumentPreviewDialog({
           </div>
           <DialogDescription className="flex items-center gap-1.5 text-xs">
             <ShieldCheck className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            Pratinjau langsung di dalam aplikasi — bebas masalah &ldquo;Request Access&rdquo; Google Drive.
+            Pratinjau terenkripsi melalui proxy internal sekolah — bebas masalah &ldquo;Request
+            Access&rdquo; Google Drive.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Area Viewer Dokumen (kertas dokumen tetap putih bersih agar otentik dibaca) */}
+        {/* Area Viewer Dokumen */}
         <div className="min-h-[380px] flex-1 overflow-auto rounded-xl border border-border bg-slate-100 p-3 sm:p-5 dark:bg-slate-900/80">
-          {isRealBlob && surat.fileUrl ? (
+          {isLiveStream && surat.fileUrl ? (
             isImage ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -170,9 +185,10 @@ export function DocumentPreviewDialog({
               <div className="mt-5 space-y-2.5 text-xs leading-relaxed text-slate-700">
                 <p>Dengan hormat,</p>
                 <p>
-                  Ini adalah tampilan simulasi berkas scan <b>{surat.fileName}</b> di dalam
-                  aplikasi. Jika Anda memilih file PDF/gambar asli dari komputer saat menambah atau
-                  mengubah surat, file asli tersebut akan langsung tampil utuh di jendela ini.
+                  Ini adalah tampilan simulasi berkas contoh <b>{surat.fileName}</b> pada Mode
+                  Demo. Saat Anda mengunggah PDF/gambar nyata atau mengaktifkan Google Drive
+                  produksi (<code className="font-mono">USE_MOCK=false</code>), berkas asli akan
+                  langsung tampil utuh di jendela ini.
                 </p>
                 {surat.catatan && (
                   <p className="rounded-md bg-slate-50 p-2.5 text-[11px] text-slate-600">

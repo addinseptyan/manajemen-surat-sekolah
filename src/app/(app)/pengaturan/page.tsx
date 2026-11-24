@@ -21,7 +21,7 @@ import {
 import { useApp } from "@/context/app-context";
 import { THEMES } from "@/lib/theme";
 import type { DisposisiJabatan, Klasifikasi } from "@/lib/types";
-import { formatNomorSurat, formatTanggalIndo, parseDisposisi, sleep } from "@/lib/utils";
+import { formatNomorSurat, formatTanggalIndo, parseDisposisi } from "@/lib/utils";
 import { FormatNomorBuilder } from "@/components/shared/format-nomor-builder";
 import { PageHeader } from "@/components/shared/page-header";
 import { TablePageSkeleton } from "@/components/shared/page-skeletons";
@@ -78,6 +78,7 @@ export default function PengaturanPage() {
   const {
     currentUser,
     isAuthLoading,
+    isDataLoading,
     pengaturan,
     klasifikasiList,
     disposisiList,
@@ -124,6 +125,18 @@ export default function PengaturanPage() {
   const [dispAktif, setDispAktif] = useState(true);
   const [dispError, setDispError] = useState("");
   const [deletingDisp, setDeletingDisp] = useState<DisposisiJabatan | null>(null);
+
+  useEffect(() => {
+    setNamaAplikasi(pengaturan.namaAplikasi);
+    setInstansiInduk(pengaturan.instansiInduk);
+    setNamaSekolah(pengaturan.namaSekolah);
+    setAlamatSekolah(pengaturan.alamatSekolah);
+    setKotaSurat(pengaturan.kotaSurat);
+    setNamaKepsek(pengaturan.namaKepsek);
+    setNipKepsek(pengaturan.nipKepsek);
+    setFormat(pengaturan.format);
+    setPad(String(pengaturan.pad));
+  }, [pengaturan]);
 
   useEffect(() => {
     if (!isAuthLoading && currentUser.role !== "admin") {
@@ -177,9 +190,8 @@ export default function PengaturanPage() {
     e.preventDefault();
     if (!isAdmin || isSavingSettings) return;
     setIsSavingSettings(true);
-    await sleep(260);
     const cleanNamaApp = namaAplikasi.trim() || "Manajemen Surat";
-    savePengaturan({
+    const res = await savePengaturan({
       namaAplikasi: cleanNamaApp,
       instansiInduk: instansiInduk.trim(),
       namaSekolah: namaSekolah.trim() || "SMK Nusantara Lab",
@@ -191,6 +203,10 @@ export default function PengaturanPage() {
       pad: Math.max(1, Math.min(6, Number(pad) || 3)),
     });
     setIsSavingSettings(false);
+    if (!res.ok) {
+      toast.error("Gagal menyimpan pengaturan", { description: res.error });
+      return;
+    }
     toast.success("Pengaturan aplikasi berhasil disimpan", {
       description: `${cleanNamaApp} · ${namaSekolah}`,
     });
@@ -216,8 +232,7 @@ export default function PengaturanPage() {
     e.preventDefault();
     if (!isAdmin || isSavingKlas) return;
     setIsSavingKlas(true);
-    await sleep(240);
-    const res = saveKlasifikasi({ kode: kodeInput, nama: namaInput }, editingKode);
+    const res = await saveKlasifikasi({ kode: kodeInput, nama: namaInput }, editingKode);
     setIsSavingKlas(false);
     if (!res.ok) {
       setKlasError(res.error ?? "Gagal menyimpan klasifikasi.");
@@ -253,8 +268,7 @@ export default function PengaturanPage() {
     e.preventDefault();
     if (!isAdmin || isSavingDisp) return;
     setIsSavingDisp(true);
-    await sleep(220);
-    const res = saveDisposisi({
+    const res = await saveDisposisi({
       id: editingDisp?.id,
       nama: dispNama,
       aktif: dispAktif,
@@ -271,14 +285,19 @@ export default function PengaturanPage() {
     );
   }
 
-  function handleConfirmDeleteDisposisi() {
+  async function handleConfirmDeleteDisposisi() {
     if (!deletingDisp) return;
-    deleteDisposisi(deletingDisp.id);
-    toast.success("Tujuan disposisi dihapus", { description: deletingDisp.nama });
+    const target = deletingDisp;
     setDeletingDisp(null);
+    const res = await deleteDisposisi(target.id);
+    if (!res.ok) {
+      toast.error("Gagal menghapus tujuan disposisi", { description: res.error });
+      return;
+    }
+    toast.success("Tujuan disposisi dihapus", { description: target.nama });
   }
 
-  if (initialLoading || isAuthLoading || currentUser.role !== "admin") {
+  if (initialLoading || isAuthLoading || isDataLoading || currentUser.role !== "admin") {
     return <TablePageSkeleton />;
   }
 
@@ -621,8 +640,16 @@ export default function PengaturanPage() {
                             <Switch
                               checked={d.aktif}
                               disabled={!isAdmin}
-                              onCheckedChange={(checked) => {
-                                saveDisposisi({ id: d.id, nama: d.nama, aktif: checked });
+                              onCheckedChange={async (checked) => {
+                                const res = await saveDisposisi({
+                                  id: d.id,
+                                  nama: d.nama,
+                                  aktif: checked,
+                                });
+                                if (!res.ok) {
+                                  toast.error(res.error ?? "Gagal mengubah status");
+                                  return;
+                                }
                                 toast.info(
                                   checked
                                     ? `"${d.nama}" ditampilkan di pilihan disposisi`
@@ -685,8 +712,8 @@ export default function PengaturanPage() {
                         <Switch
                           checked={d.aktif}
                           disabled={!isAdmin}
-                          onCheckedChange={(checked) => {
-                            saveDisposisi({ id: d.id, nama: d.nama, aktif: checked });
+                          onCheckedChange={async (checked) => {
+                            await saveDisposisi({ id: d.id, nama: d.nama, aktif: checked });
                           }}
                         />
                         <span className="text-muted-foreground text-xs">
@@ -801,9 +828,10 @@ export default function PengaturanPage() {
                               variant="ghost"
                               size="icon"
                               disabled={!isAdmin || used > 0}
-                              onClick={() => {
-                                const res = deleteKlasifikasi(k.kode);
+                              onClick={async () => {
+                                const res = await deleteKlasifikasi(k.kode);
                                 if (res.ok) toast.success(`Kode ${k.kode} dihapus`);
+                                else toast.error(res.error ?? "Gagal menghapus");
                               }}
                               title={used > 0 ? "Sudah dipakai pada surat" : "Hapus jenis"}
                             >
@@ -854,9 +882,10 @@ export default function PengaturanPage() {
                           size="icon"
                           className="size-8 text-red-500"
                           disabled={used > 0}
-                          onClick={() => {
-                            const res = deleteKlasifikasi(k.kode);
+                          onClick={async () => {
+                            const res = await deleteKlasifikasi(k.kode);
                             if (res.ok) toast.success(`Kode ${k.kode} dihapus`);
+                            else toast.error(res.error ?? "Gagal menghapus");
                           }}
                         >
                           <Trash2 className="size-3.5" />
