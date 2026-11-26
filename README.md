@@ -1,6 +1,6 @@
 # Manajemen Surat Sekolah
 
-![Versi](https://img.shields.io/badge/rilis-v1.0.2-4f46e5)
+![Versi](https://img.shields.io/badge/rilis-v1.0.3-4f46e5)
 ![Next.js](https://img.shields.io/badge/Next.js-16.2%20(App%20Router)-000000)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06b6d4)
@@ -15,8 +15,8 @@ Sistem informasi manajemen arsip **Surat Masuk**, **Surat Keluar**, **Penomoran 
 - **Penomoran Surat Keluar Otomatis & Lompat Nomor Urut (Reserve Slot)**
   - Penomoran otomatis berbasis pola fleksibel (`{urut}`, `{jenis}`, `{bulan}`, `{bulan_angka}`, `{tahun}`) yang otomatis me-reset nomor urut kembali ke `001` setiap pergantian tahun baru.
   - Fitur **Lompat Nomor Urut**: apabila TU menerbitkan nomor urut lebih tinggi (misal lompat ke `010`), nomor sela yang kosong otomatis dicatat sebagai slot **`Belum Lengkap`** agar mudah dilengkapi menyusul tanpa nomor ganda.
-- **Pratinjau PDF/Gambar Dalam Aplikasi (Bebas *"Request Access"*)**
-  - Proxy dokumen internal terautentikasi (`/api/files/[fileId]`) mengalirkan berkas PDF & gambar langsung dari Google Drive secara aman di dalam modal aplikasi (baik berkas baru maupun arsip lama Apps Script), sembari menjaga folder Google Drive sekolah **100% Privat**.
+- **Pratinjau PDF, Gambar, & Microsoft Word (`.docx`) Dalam Aplikasi (Bebas *"Request Access"*)**
+  - Proxy dokumen internal terautentikasi (`/api/files/[fileId]`) mengalirkan berkas PDF, gambar, serta merender halaman **`.docx`** langsung di dalam modal aplikasi (baik berkas baru maupun arsip lama Apps Script), sembari menjaga folder Google Drive sekolah **100% Privat**.
 - **Mendukung Penuh Akun `@gmail.com` Sekolah Gratis (15 GB)**
   - Menggunakan kredensial **OAuth2 Refresh Token** sehingga unggahan berkas PDF menggunakan kuota 15 GB akun Gmail sekolah tanpa kendala `storageQuotaExceeded` milik Service Account, plus otomatis mengelompokkan berkas ke subfolder tahun (`2026`, `2027`, dst.) dan memindahkan berkas terhapus ke Trash (aman dipulihkan 30 hari).
 - **Disposisi Digital Cepat & Kustomisasi Admin**

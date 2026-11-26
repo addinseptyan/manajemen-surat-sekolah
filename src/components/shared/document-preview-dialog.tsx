@@ -1,7 +1,16 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Download, FileCheck2, FileSpreadsheet, FileText, ShieldCheck } from "lucide-react";
+import {
+  AlertCircle,
+  Download,
+  FileCheck2,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
+  ShieldCheck,
+} from "lucide-react";
 import { useApp } from "@/context/app-context";
 import type { Surat } from "@/lib/types";
 import { formatTanggalIndo } from "@/lib/utils";
@@ -14,6 +23,112 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+function DocxInlineViewer({
+  fileUrl,
+  fileName,
+  onDownload,
+}: {
+  fileUrl: string;
+  fileName?: string;
+  onDownload: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAndRender() {
+      setStatus("loading");
+      setErrorMessage("");
+
+      try {
+        const [{ renderAsync }, res] = await Promise.all([
+          import("docx-preview"),
+          fetch(fileUrl, { credentials: "include" }),
+        ]);
+
+        if (!res.ok) {
+          throw new Error("Gagal mengambil berkas .docx dari server.");
+        }
+
+        const blob = await res.blob();
+        if (cancelled || !containerRef.current) return;
+
+        containerRef.current.innerHTML = "";
+        await renderAsync(blob, containerRef.current, undefined, {
+          className: "docx-viewer",
+          inWrapper: true,
+          ignoreWidth: true,
+          ignoreHeight: true,
+          breakPages: true,
+          useBase64URL: true,
+        });
+
+        if (!cancelled) {
+          setStatus("ready");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setStatus("error");
+          setErrorMessage(
+            err instanceof Error
+              ? err.message
+              : "Format berkas Word tidak dapat dirender di browser."
+          );
+        }
+      }
+    }
+
+    void loadAndRender();
+    return () => {
+      cancelled = true;
+    };
+  }, [fileUrl]);
+
+  return (
+    <div className="relative">
+      {status === "loading" && (
+        <div className="flex min-h-[300px] flex-col items-center justify-center gap-2.5 text-center">
+          <Loader2 className="size-7 animate-spin text-indigo-600 dark:text-indigo-400" />
+          <div className="text-foreground text-xs font-medium">
+            Membuka halaman Microsoft Word ({fileName || "dokumen.docx"})...
+          </div>
+        </div>
+      )}
+
+      {status === "error" && (
+        <div className="bg-card mx-auto flex max-w-md flex-col items-center rounded-xl border border-border p-6 text-center shadow-sm sm:my-6 sm:p-8">
+          <AlertCircle className="mb-2 size-8 text-amber-500" />
+          <h3 className="text-foreground text-sm font-semibold">
+            Pratinjau Langsung Tidak Tersedia
+          </h3>
+          <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+            {errorMessage} Anda tetap dapat mengunduh berkas asli <b>.docx</b> di bawah ini.
+          </p>
+          <Button
+            onClick={onDownload}
+            className="mt-4 bg-indigo-600 text-white hover:bg-indigo-700"
+          >
+            <Download className="size-4" />
+            Unduh Berkas Asli (.docx)
+          </Button>
+        </div>
+      )}
+
+      <div
+        ref={containerRef}
+        className={
+          status === "error"
+            ? "hidden"
+            : "docx-preview-host mx-auto overflow-x-auto [&_.docx-viewer-wrapper]:!bg-transparent [&_.docx-viewer-wrapper]:!p-1 sm:[&_.docx-viewer-wrapper]:!p-3 [&_.docx-viewer-wrapper>section.docx-viewer]:!mx-auto [&_.docx-viewer-wrapper>section.docx-viewer]:!mb-4 [&_.docx-viewer-wrapper>section.docx-viewer]:!w-full [&_.docx-viewer-wrapper>section.docx-viewer]:!max-w-[760px] [&_.docx-viewer-wrapper>section.docx-viewer]:!rounded-lg [&_.docx-viewer-wrapper>section.docx-viewer]:!bg-white [&_.docx-viewer-wrapper>section.docx-viewer]:!p-5 [&_.docx-viewer-wrapper>section.docx-viewer]:!text-slate-900 [&_.docx-viewer-wrapper>section.docx-viewer]:!shadow-md sm:[&_.docx-viewer-wrapper>section.docx-viewer]:!p-10 [&_table]:!w-full [&_table]:!border-collapse [&_td]:!p-1.5"
+        }
+      />
+    </div>
+  );
+}
 
 interface DocumentPreviewDialogProps {
   surat: Surat | null;
@@ -43,8 +158,15 @@ export function DocumentPreviewDialog({
     mimeLower.startsWith("image/") ||
     /\.(png|jpe?g|webp|gif)$/i.test(fileNameLower);
 
+  const isDocx =
+    !isImage &&
+    (mimeLower ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      /\.docx$/i.test(fileNameLower));
+
   const isPdf =
     !isImage &&
+    !isDocx &&
     (mimeLower === "application/pdf" ||
       (!extMatch && !mimeLower) ||
       /\.pdf$/i.test(fileNameLower));
@@ -157,8 +279,8 @@ export function DocumentPreviewDialog({
           </div>
           <DialogDescription className="flex items-center gap-1.5 text-xs">
             <ShieldCheck className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            Pratinjau terenkripsi melalui proxy internal sekolah — bebas masalah &ldquo;Request
-            Access&rdquo; Google Drive.
+            Pratinjau terenkripsi melalui proxy internal sekolah — mendukung PDF, Gambar, &amp;
+            Microsoft Word (.docx) tanpa &ldquo;Request Access&rdquo;.
           </DialogDescription>
         </DialogHeader>
 
@@ -171,6 +293,12 @@ export function DocumentPreviewDialog({
                 src={surat.fileUrl}
                 alt={surat.fileName || "Lampiran surat"}
                 className="mx-auto max-h-[65vh] rounded-lg bg-white object-contain shadow"
+              />
+            ) : isDocx ? (
+              <DocxInlineViewer
+                fileUrl={surat.fileUrl}
+                fileName={surat.fileName}
+                onDownload={handleDownload}
               />
             ) : isPdf ? (
               <iframe
@@ -195,8 +323,7 @@ export function DocumentPreviewDialog({
                 </h3>
                 <p className="text-muted-foreground mt-1.5 text-xs leading-relaxed">
                   Berkas berformat <b>.{extUpper.toLowerCase()}</b> tersimpan utuh di Google Drive
-                  sekolah. Unduh berkas untuk membukanya langsung di Microsoft Word / Excel / WPS
-                  Office.
+                  sekolah. Unduh berkas untuk membukanya langsung di aplikasi pengolah dokumen.
                 </p>
                 <Button
                   onClick={handleDownload}
