@@ -147,6 +147,7 @@ export function SuratView({ arah }: SuratViewProps) {
   const [formTanggal, setFormTanggal] = useState(() => getTodayIsoWib());
   const [formUrut, setFormUrut] = useState("8");
   const [lompatUrutEnabled, setLompatUrutEnabled] = useState(false);
+  const [selectedHoleUrut, setSelectedHoleUrut] = useState<number | null>(null);
   const [formJenis, setFormJenis] = useState(klasifikasiList[0]?.kode ?? "B");
   const [formNomorMasuk, setFormNomorMasuk] = useState("");
   const [formPihak, setFormPihak] = useState("");
@@ -288,27 +289,49 @@ export function SuratView({ arah }: SuratViewProps) {
 
   const formTahun = Number(formTanggal.slice(0, 4)) || getCurrentYearWib();
   const normalNextUrut = useMemo(() => getNextUrut(formTahun), [getNextUrut, formTahun]);
+
+  // Celah nomor urut yang terlanjur hilang/terhapus sama sekali di bawah normalNextUrut
+  const orphanedHoleUruts = useMemo(() => {
+    if (!isKeluar || editingSurat) return [];
+    return getMissingUrutBefore(formTahun, normalNextUrut);
+  }, [isKeluar, editingSurat, getMissingUrutBefore, formTahun, normalNextUrut]);
+
   const rawParsedUrut = Number(formUrut);
   const isLompatUrutInvalid =
     isKeluar &&
     !editingSurat &&
+    selectedHoleUrut === null &&
     lompatUrutEnabled &&
     (!Number.isInteger(rawParsedUrut) || rawParsedUrut < normalNextUrut);
   const targetUrutNum = editingSurat
     ? Math.max(1, rawParsedUrut || 1)
-    : Math.max(normalNextUrut, Math.floor(rawParsedUrut) || normalNextUrut);
+    : selectedHoleUrut !== null
+      ? selectedHoleUrut
+      : Math.max(normalNextUrut, Math.floor(rawParsedUrut) || normalNextUrut);
 
   const pendingGapList = useMemo(() => {
-    if (!isKeluar || editingSurat || !lompatUrutEnabled || isLompatUrutInvalid) return [];
-    return getMissingUrutBefore(formTahun, targetUrutNum);
+    if (
+      !isKeluar ||
+      editingSurat ||
+      selectedHoleUrut !== null ||
+      !lompatUrutEnabled ||
+      isLompatUrutInvalid
+    ) {
+      return [];
+    }
+    return getMissingUrutBefore(formTahun, targetUrutNum).filter(
+      (n) => n >= normalNextUrut
+    );
   }, [
     isKeluar,
     editingSurat,
+    selectedHoleUrut,
     lompatUrutEnabled,
     isLompatUrutInvalid,
     getMissingUrutBefore,
     formTahun,
     targetUrutNum,
+    normalNextUrut,
   ]);
 
   const previewNomorKeluar = useMemo(() => {
@@ -322,6 +345,35 @@ export function SuratView({ arah }: SuratViewProps) {
     );
   }, [isKeluar, pengaturan, targetUrutNum, formJenis, formTanggal]);
 
+  function hasHigherUrutInSameYear(row: Surat | null): boolean {
+    if (!row || row.arah !== "keluar" || typeof row.urut !== "number") return false;
+    const rowUrut = row.urut;
+    return suratList.some(
+      (s) =>
+        s.id !== row.id &&
+        s.arah === "keluar" &&
+        s.tahun === row.tahun &&
+        typeof s.urut === "number" &&
+        s.urut > rowUrut
+    );
+  }
+
+  function requestDeleteSurat(row: Surat) {
+    if (
+      row.arah === "keluar" &&
+      row.status === "Belum Lengkap" &&
+      hasHigherUrutInSameYear(row)
+    ) {
+      const padStr = String(row.urut).padStart(pengaturan.pad, "0");
+      toast.info(`Slot Nomor ${padStr} Dijaga di Tengah Urutan`, {
+        description:
+          "Slot kosong di tengah tidak dihapus agar urutan nomor tidak bolong. Klik tombol Lengkapi untuk mengisinya, atau hapus nomor paling akhir terlebih dahulu.",
+      });
+      return;
+    }
+    setDeletingSurat(row);
+  }
+
   function openCreateDialog() {
     const today = getTodayIsoWib();
     const yr = Number(today.slice(0, 4)) || getCurrentYearWib();
@@ -329,6 +381,7 @@ export function SuratView({ arah }: SuratViewProps) {
     setFormTanggal(today);
     setFormUrut(String(getNextUrut(yr)));
     setLompatUrutEnabled(false);
+    setSelectedHoleUrut(null);
     setFormJenis(klasifikasiList[0]?.kode ?? "B");
     setFormNomorMasuk("");
     setFormPihak("");
@@ -347,6 +400,7 @@ export function SuratView({ arah }: SuratViewProps) {
     setFormTanggal(item.tanggal);
     setFormUrut(String(typeof item.urut === "number" ? item.urut : 1));
     setLompatUrutEnabled(false);
+    setSelectedHoleUrut(null);
     setFormJenis(item.jenis || klasifikasiList[0]?.kode || "B");
     setFormNomorMasuk(item.nomor);
     setFormPihak(isSlot ? "" : item.pihak);
@@ -363,15 +417,32 @@ export function SuratView({ arah }: SuratViewProps) {
     if (!editingSurat) {
       const nextYr = Number(nextDate.slice(0, 4));
       if (nextYr >= 2000) {
+        if (nextYr !== formTahun) {
+          setSelectedHoleUrut(null);
+        }
         const nextYrUrut = getNextUrut(nextYr);
-        if (!lompatUrutEnabled || (Number(formUrut) || 0) < nextYrUrut) {
+        if (
+          selectedHoleUrut === null &&
+          (!lompatUrutEnabled || (Number(formUrut) || 0) < nextYrUrut)
+        ) {
           setFormUrut(String(nextYrUrut));
         }
       }
     }
   }
 
+  function handleSelectHoleUrut(hole: number | null) {
+    setSelectedHoleUrut(hole);
+    if (hole !== null) {
+      setLompatUrutEnabled(false);
+      setFormUrut(String(hole));
+    } else {
+      setFormUrut(String(normalNextUrut));
+    }
+  }
+
   function handleToggleLompatUrut(checked: boolean) {
+    setSelectedHoleUrut(null);
     setLompatUrutEnabled(checked);
     if (checked) {
       if ((Number(formUrut) || 0) < normalNextUrut) {
@@ -410,9 +481,11 @@ export function SuratView({ arah }: SuratViewProps) {
 
     const effectiveUrut =
       isKeluar && !editingSurat
-        ? lompatUrutEnabled
-          ? targetUrutNum
-          : normalNextUrut
+        ? selectedHoleUrut !== null
+          ? selectedHoleUrut
+          : lompatUrutEnabled
+            ? targetUrutNum
+            : normalNextUrut
         : isKeluar
           ? targetUrutNum
           : undefined;
@@ -467,7 +540,15 @@ export function SuratView({ arah }: SuratViewProps) {
     setDeletingSurat(null);
     const res = await deleteSurat(target.id);
     if (!res.ok) {
-      toast.error("Gagal menghapus surat", { description: res.error });
+      toast.error("Tidak dapat menghapus baris ini", { description: res.error });
+      return;
+    }
+    if (res.convertedToSlot) {
+      const padStr = String(target.urut).padStart(pengaturan.pad, "0");
+      toast.success(`Nomor ${padStr} dikembalikan menjadi Slot Kosong`, {
+        description:
+          "Isi surat dihapus. Anda dapat memakai kembali nomor ini kapan saja lewat tombol Lengkapi.",
+      });
       return;
     }
     toast.success("Baris arsip surat telah dihapus", {
@@ -887,10 +968,12 @@ export function SuratView({ arah }: SuratViewProps) {
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   variant="destructive"
-                                  onClick={() => setDeletingSurat(row)}
+                                  onClick={() => requestDeleteSurat(row)}
                                 >
                                   <Trash2 className="size-4" />
-                                  Hapus Baris
+                                  {!isSlot && hasHigherUrutInSameYear(row)
+                                    ? "Kosongkan Nomor"
+                                    : "Hapus Baris"}
                                 </DropdownMenuItem>
                               </>
                             )}
@@ -1019,10 +1102,12 @@ export function SuratView({ arah }: SuratViewProps) {
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 variant="destructive"
-                                onClick={() => setDeletingSurat(row)}
+                                onClick={() => requestDeleteSurat(row)}
                               >
                                 <Trash2 className="size-4" />
-                                Hapus Baris
+                                {!isSlot && hasHigherUrutInSameYear(row)
+                                  ? "Kosongkan Nomor"
+                                  : "Hapus Baris"}
                               </DropdownMenuItem>
                             </>
                           )}
@@ -1225,7 +1310,7 @@ export function SuratView({ arah }: SuratViewProps) {
         onOpenChange={(open) => !open && setDetailSurat(null)}
         canManage={activeDetailCanManage}
         onEdit={openEditDialog}
-        onDelete={(s) => setDeletingSurat(s)}
+        onDelete={(s) => requestDeleteSurat(s)}
         onPreviewDoc={(s) => setPreviewDocSurat(s)}
       />
 
@@ -1295,14 +1380,26 @@ export function SuratView({ arah }: SuratViewProps) {
                     <Input
                       id="urut-surat"
                       type="number"
-                      min={editingSurat ? 1 : normalNextUrut}
+                      min={
+                        editingSurat || selectedHoleUrut !== null
+                          ? 1
+                          : normalNextUrut
+                      }
                       step={1}
                       required
-                      disabled={Boolean(editingSurat) || !lompatUrutEnabled}
+                      disabled={
+                        Boolean(editingSurat) ||
+                        selectedHoleUrut !== null ||
+                        !lompatUrutEnabled
+                      }
                       value={formUrut}
                       onChange={(e) => setFormUrut(e.target.value)}
                       onBlur={() => {
-                        if (!editingSurat && lompatUrutEnabled) {
+                        if (
+                          !editingSurat &&
+                          selectedHoleUrut === null &&
+                          lompatUrutEnabled
+                        ) {
                           const n = Math.floor(Number(formUrut));
                           if (!Number.isFinite(n) || n < normalNextUrut) {
                             setFormUrut(String(normalNextUrut));
@@ -1343,9 +1440,54 @@ export function SuratView({ arah }: SuratViewProps) {
               )}
             </div>
 
-            {/* Kontrol Switch Lompati Nomor Urut (Khusus Tambah Surat Keluar Baru) */}
+            {/* Kontrol Pemulihan Celah Terhapus & Switch Lompati Nomor Urut */}
             {isKeluar && !editingSurat && (
               <div className="space-y-2.5">
+                {orphanedHoleUruts.length > 0 && (
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 dark:border-indigo-800/70 dark:bg-indigo-950/40">
+                    <div className="text-xs font-semibold text-indigo-900 dark:text-indigo-200">
+                      Tersedia {orphanedHoleUruts.length} Nomor Kosong yang Sebelumnya Terhapus
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-indigo-700/90 dark:text-indigo-300/80">
+                      Pilih salah satu nomor sela di bawah ini untuk memakainya kembali, atau
+                      tetap gunakan urutan baru berikutnya.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectHoleUrut(null)}
+                        className={cn(
+                          "cursor-pointer rounded-lg border px-2.5 py-1 font-mono text-xs font-semibold transition-colors",
+                          selectedHoleUrut === null && !lompatUrutEnabled
+                            ? "border-indigo-600 bg-indigo-600 text-white"
+                            : "bg-card text-foreground border-border hover:bg-muted"
+                        )}
+                      >
+                        Urutan Baru ({String(normalNextUrut).padStart(pengaturan.pad, "0")})
+                      </button>
+                      {orphanedHoleUruts.map((hole) => {
+                        const padHole = String(hole).padStart(pengaturan.pad, "0");
+                        const active = selectedHoleUrut === hole;
+                        return (
+                          <button
+                            key={hole}
+                            type="button"
+                            onClick={() => handleSelectHoleUrut(hole)}
+                            className={cn(
+                              "cursor-pointer rounded-lg border px-2.5 py-1 font-mono text-xs font-semibold transition-colors",
+                              active
+                                ? "border-emerald-600 bg-emerald-600 text-white"
+                                : "bg-card border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
+                            )}
+                          >
+                            Isi Celah {padHole}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-muted/50 flex items-center justify-between gap-3 rounded-xl border border-border px-3.5 py-2.5">
                   <div className="min-w-0">
                     <Label
@@ -1536,21 +1678,47 @@ export function SuratView({ arah }: SuratViewProps) {
         </DialogContent>
       </Dialog>
 
-      {/* AlertDialog Konfirmasi Hapus */}
+      {/* AlertDialog Konfirmasi Hapus / Kosongkan Nomor Tengah */}
       <AlertDialog
         open={Boolean(deletingSurat)}
         onOpenChange={(open) => !open && setDeletingSurat(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Hapus Baris Surat Ini?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {deletingSurat &&
+              deletingSurat.status === "Lengkap" &&
+              hasHigherUrutInSameYear(deletingSurat)
+                ? `Kosongkan Isi Surat Nomor ${String(deletingSurat.urut).padStart(pengaturan.pad, "0")}?`
+                : "Hapus Baris Surat Ini?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Data surat{" "}
-              <b className="text-foreground font-mono">
-                {deletingSurat?.nomor || deletingSurat?.perihal}
-              </b>{" "}
-              akan dihapus dari daftar arsip. Jika ini adalah nomor urut paling akhir, nomor
-              tersebut otomatis dapat dipakai kembali.
+              {deletingSurat &&
+              deletingSurat.status === "Lengkap" &&
+              hasHigherUrutInSameYear(deletingSurat) ? (
+                <>
+                  Karena sudah terdapat nomor urut yang lebih tinggi di tahun ini, isi dan berkas
+                  surat{" "}
+                  <b className="text-foreground font-mono">
+                    {deletingSurat.nomor || deletingSurat.perihal}
+                  </b>{" "}
+                  akan dihapus lalu baris ini otomatis dikembalikan menjadi slot{" "}
+                  <b className="text-foreground">Belum Lengkap</b> agar nomor{" "}
+                  <b className="text-foreground font-mono">
+                    {String(deletingSurat.urut).padStart(pengaturan.pad, "0")}
+                  </b>{" "}
+                  tetap dapat dipakai kembali lewat tombol <b>Lengkapi</b>.
+                </>
+              ) : (
+                <>
+                  Data surat{" "}
+                  <b className="text-foreground font-mono">
+                    {deletingSurat?.nomor || deletingSurat?.perihal}
+                  </b>{" "}
+                  akan dihapus dari daftar arsip. Jika ini adalah nomor urut paling akhir, urutan
+                  penomoran otomatis mundur kembali.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1559,7 +1727,11 @@ export function SuratView({ arah }: SuratViewProps) {
               onClick={handleConfirmDelete}
               className="bg-red-600 text-white hover:bg-red-700"
             >
-              Ya, Hapus
+              {deletingSurat &&
+              deletingSurat.status === "Lengkap" &&
+              hasHigherUrutInSameYear(deletingSurat)
+                ? "Ya, Kosongkan Nomor"
+                : "Ya, Hapus"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

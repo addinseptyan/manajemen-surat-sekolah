@@ -313,16 +313,27 @@ export async function saveSuratRecord(
     if (
       !targetId &&
       payload.arah === "keluar" &&
-      payload.urutManual !== undefined &&
-      payload.urutManual < nextNormalUrut
+      payload.urutManual !== undefined
     ) {
-      return {
-        ok: false,
-        error: `Nomor urut baru minimal ${String(nextNormalUrut).padStart(
-          pengaturan.pad,
-          "0"
-        )} atau lebih besar. Untuk mengisi nomor kosong sebelumnya, gunakan tombol Lengkapi.`,
-      };
+      if (!Number.isInteger(payload.urutManual) || payload.urutManual < 1) {
+        return { ok: false, error: "Nomor urut surat tidak valid." };
+      }
+      const existingSameUrut = repo.suratList.find(
+        (s) =>
+          s.arah === "keluar" &&
+          s.tahun === tahun &&
+          s.urut === payload.urutManual
+      );
+      if (existingSameUrut) {
+        const padStr = String(payload.urutManual).padStart(pengaturan.pad, "0");
+        return {
+          ok: false,
+          error:
+            existingSameUrut.status === "Belum Lengkap"
+              ? `Nomor urut ${padStr} tersedia sebagai slot kosong di tabel. Silakan gunakan tombol Lengkapi pada baris tersebut.`
+              : `Nomor urut ${padStr} sudah terpakai oleh surat ${existingSameUrut.nomor}.`,
+        };
+      }
     }
 
     let demoFileUrl: string | undefined;
@@ -405,12 +416,16 @@ export async function saveSuratRecord(
 
     const targetUrut =
       payload.arah === "keluar"
-        ? Math.max(1, payload.urutManual ?? calcNextUrut(repo.suratList, tahun))
+        ? Math.max(1, payload.urutManual ?? nextNormalUrut)
         : ("" as const);
 
     const generatedGaps =
-      payload.arah === "keluar" && typeof targetUrut === "number"
-        ? calcMissingUrutBefore(repo.suratList, tahun, targetUrut)
+      payload.arah === "keluar" &&
+      typeof targetUrut === "number" &&
+      targetUrut > nextNormalUrut
+        ? calcMissingUrutBefore(repo.suratList, tahun, targetUrut).filter(
+            (n) => n >= nextNormalUrut
+          )
         : [];
 
     const gapItems: Surat[] = generatedGaps.map((n) => {
@@ -497,16 +512,27 @@ export async function saveSuratRecord(
     !targetRow &&
     !payload.id &&
     payload.arah === "keluar" &&
-    payload.urutManual !== undefined &&
-    payload.urutManual < nextNormalUrut
+    payload.urutManual !== undefined
   ) {
-    return {
-      ok: false,
-      error: `Nomor urut baru minimal ${String(nextNormalUrut).padStart(
-        pengaturan.pad,
-        "0"
-      )} atau lebih besar. Untuk mengisi nomor kosong sebelumnya, gunakan tombol Lengkapi.`,
-    };
+    if (!Number.isInteger(payload.urutManual) || payload.urutManual < 1) {
+      return { ok: false, error: "Nomor urut surat tidak valid." };
+    }
+    const existingSameUrut = mappedRows.find(
+      (s) =>
+        s.arah === "keluar" &&
+        s.tahun === tahun &&
+        s.urut === payload.urutManual
+    );
+    if (existingSameUrut) {
+      const padStr = String(payload.urutManual).padStart(pengaturan.pad, "0");
+      return {
+        ok: false,
+        error:
+          existingSameUrut.status === "Belum Lengkap"
+            ? `Nomor urut ${padStr} tersedia sebagai slot kosong di tabel. Silakan gunakan tombol Lengkapi pada baris tersebut.`
+            : `Nomor urut ${padStr} sudah terpakai oleh surat ${existingSameUrut.nomor}.`,
+      };
+    }
   }
 
   if (targetRow) {
@@ -609,12 +635,16 @@ export async function saveSuratRecord(
   // Tambah Baru ke Google Sheets
   const targetUrut =
     payload.arah === "keluar"
-      ? Math.max(1, payload.urutManual ?? calcNextUrut(mappedRows, tahun))
+      ? Math.max(1, payload.urutManual ?? nextNormalUrut)
       : ("" as const);
 
   const generatedGaps =
-    payload.arah === "keluar" && typeof targetUrut === "number"
-      ? calcMissingUrutBefore(mappedRows, tahun, targetUrut)
+    payload.arah === "keluar" &&
+    typeof targetUrut === "number" &&
+    targetUrut > nextNormalUrut
+      ? calcMissingUrutBefore(mappedRows, tahun, targetUrut).filter(
+          (n) => n >= nextNormalUrut
+        )
       : [];
 
   const nomor =
@@ -717,7 +747,12 @@ export async function saveSuratRecord(
 export async function deleteSuratRecord(
   actor: User,
   id: string
-): Promise<{ ok: boolean; suratList?: Surat[]; error?: string }> {
+): Promise<{
+  ok: boolean;
+  convertedToSlot?: boolean;
+  suratList?: Surat[];
+  error?: string;
+}> {
   if (isDemoMode()) {
     const repo = getDemoRepo();
     const target = repo.suratList.find((s) => s.id === id);
@@ -732,11 +767,60 @@ export async function deleteSuratRecord(
         error: "Anda hanya dapat menghapus surat yang Anda catat sendiri.",
       };
     }
+
+    const hasHigherUrut =
+      target.arah === "keluar" &&
+      typeof target.urut === "number" &&
+      repo.suratList.some(
+        (s) =>
+          s.id !== target.id &&
+          s.arah === "keluar" &&
+          s.tahun === target.tahun &&
+          typeof s.urut === "number" &&
+          s.urut > (target.urut as number)
+      );
+
+    if (hasHigherUrut && typeof target.urut === "number") {
+      const padStr = String(target.urut).padStart(repo.pengaturan.pad, "0");
+      if (target.status === "Belum Lengkap") {
+        return {
+          ok: false,
+          error: `Slot kosong nomor ${padStr} berada di tengah urutan (masih ada nomor lebih besar di atasnya). Gunakan tombol Lengkapi untuk mengisinya, atau hapus nomor urut paling akhir terlebih dahulu.`,
+        };
+      }
+
+      const vacated: Surat = {
+        ...target,
+        nomor: formatNomorSurat(
+          repo.pengaturan.format,
+          repo.pengaturan.pad,
+          target.urut,
+          "---",
+          target.tanggal
+        ),
+        jenis: "",
+        pihak: "— (Slot kosong setelah penghapusan isi surat)",
+        perihal: `Slot Nomor Urut ${padStr} Kosong — Silakan klik Lengkapi untuk memakai nomor ini`,
+        catatan: `Dikembalikan menjadi slot kosong oleh ${actor.nama}`,
+        fileName: undefined,
+        fileUrl: "",
+        fileMime: undefined,
+        status: "Belum Lengkap",
+        pembuat: "Sistem Penertiban",
+      };
+      repo.suratList = repo.suratList.map((s) => (s.id === id ? vacated : s));
+      return { ok: true, convertedToSlot: true, suratList: repo.suratList };
+    }
+
     repo.suratList = repo.suratList.filter((s) => s.id !== id);
-    return { ok: true, suratList: repo.suratList };
+    return { ok: true, convertedToSlot: false, suratList: repo.suratList };
   }
 
-  const rows = (await readSheetRows("Surat")).map((r) => mapSheetRowToSurat(r));
+  const [rawSuratRows, pengaturan] = await Promise.all([
+    readSheetRows("Surat"),
+    getPengaturanData(),
+  ]);
+  const rows = rawSuratRows.map((r) => mapSheetRowToSurat(r));
   const target = rows.find((s) => s.id === id);
   if (!target) {
     return { ok: false, error: "Surat tidak ditemukan di Spreadsheet." };
@@ -751,6 +835,74 @@ export async function deleteSuratRecord(
       ok: false,
       error: "Anda hanya dapat menghapus surat yang Anda catat sendiri.",
     };
+  }
+
+  const hasHigherUrut =
+    target.arah === "keluar" &&
+    typeof target.urut === "number" &&
+    rows.some(
+      (s) =>
+        s.id !== target.id &&
+        s.arah === "keluar" &&
+        s.tahun === target.tahun &&
+        typeof s.urut === "number" &&
+        s.urut > (target.urut as number)
+    );
+
+  if (hasHigherUrut && typeof target.urut === "number") {
+    const padStr = String(target.urut).padStart(pengaturan.pad, "0");
+    if (target.status === "Belum Lengkap") {
+      return {
+        ok: false,
+        error: `Slot kosong nomor ${padStr} berada di tengah urutan (masih ada nomor lebih besar di atasnya). Gunakan tombol Lengkapi untuk mengisinya, atau hapus nomor urut paling akhir terlebih dahulu.`,
+      };
+    }
+
+    if (target._rawFileUrl) {
+      void trashDriveFileIfNeeded(target._rawFileUrl);
+    }
+
+    const vacatedNomor = formatNomorSurat(
+      pengaturan.format,
+      pengaturan.pad,
+      target.urut,
+      "---",
+      target.tanggal
+    );
+
+    await updateSheetRow("Surat", target._row, {
+      id: target.id,
+      arah: target.arah,
+      nomor: vacatedNomor,
+      urut: target.urut,
+      tahun: target.tahun,
+      jenis: "",
+      tanggal: target.tanggal,
+      pihak: "— (Slot kosong setelah penghapusan isi surat)",
+      perihal: `Slot Nomor Urut ${padStr} Kosong — Silakan klik Lengkapi untuk memakai nomor ini`,
+      catatan: `Dikembalikan menjadi slot kosong oleh ${actor.nama}`,
+      fileUrl: "",
+      status: "Belum Lengkap",
+      pembuat: "Sistem Penertiban",
+      dibuat: target.dibuat,
+      alasanBatal: "",
+      batalOleh: "",
+      batalWaktu: "",
+    });
+
+    void appendAuditLog(
+      actor.nama,
+      "surat.vacate_slot",
+      `${target.nomor} -> Slot Kosong ${padStr}`
+    );
+
+    const freshHydrated = await hydrateSheetRowsToSurat(
+      await readSheetRows("Surat")
+    );
+    const freshList = freshHydrated.map(
+      ({ _row: _r, _rawFileUrl: _rf, _legacyBatal: _lb, ...c }) => c
+    );
+    return { ok: true, convertedToSlot: true, suratList: freshList };
   }
 
   if (target._rawFileUrl) {
@@ -770,7 +922,7 @@ export async function deleteSuratRecord(
     ({ _row: _r, _rawFileUrl: _rf, _legacyBatal: _lb, ...c }) => c
   );
 
-  return { ok: true, suratList: freshList };
+  return { ok: true, convertedToSlot: false, suratList: freshList };
 }
 
 export async function savePengaturanRecord(

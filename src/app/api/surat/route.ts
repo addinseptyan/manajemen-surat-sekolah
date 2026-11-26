@@ -105,7 +105,11 @@ export async function DELETE(request: Request) {
     if (!res.ok) {
       return NextResponse.json({ ok: false, error: res.error }, { status: 400 });
     }
-    return NextResponse.json({ ok: true, suratList: res.suratList });
+    return NextResponse.json({
+      ok: true,
+      convertedToSlot: Boolean(res.convertedToSlot),
+      suratList: res.suratList,
+    });
   } catch (err) {
     return NextResponse.json(
       {
