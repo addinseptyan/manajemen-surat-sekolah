@@ -30,18 +30,23 @@ function Command({
 function CommandDialog({
   title = "Command Palette",
   description = "Cari menu, surat, atau jalankan perintah cepat",
+  shouldFilter = true,
   children,
   ...props
 }: React.ComponentProps<typeof Dialog> & {
   title?: string;
   description?: string;
+  shouldFilter?: boolean;
 }) {
   return (
     <Dialog {...props}>
-      <DialogContent className="overflow-hidden p-0 shadow-2xl sm:max-w-lg">
+      <DialogContent className="top-3 translate-y-0 overflow-hidden p-0 shadow-2xl sm:top-[14%] sm:max-w-lg sm:translate-y-0 [&_[data-slot=dialog-close]]:top-3 [&_[data-slot=dialog-close]]:right-3">
         <DialogTitle className="sr-only">{title}</DialogTitle>
         <DialogDescription className="sr-only">{description}</DialogDescription>
-        <Command className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group]]:px-1.5">
+        <Command
+          shouldFilter={shouldFilter}
+          className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group]]:px-1.5"
+        >
           {children}
         </Command>
       </DialogContent>
@@ -56,13 +61,13 @@ function CommandInput({
   return (
     <div
       data-slot="command-input-wrapper"
-      className="flex h-10 items-center gap-2 border-b border-border px-3"
+      className="flex h-11 items-center gap-2 border-b border-border pr-10 pl-3"
     >
       <Search className="text-muted-foreground size-4 shrink-0" />
       <CommandPrimitive.Input
         data-slot="command-input"
         className={cn(
-          "placeholder:text-muted-foreground flex h-10 w-full rounded-md bg-transparent py-2.5 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50",
+          "placeholder:text-muted-foreground flex h-11 w-full rounded-md bg-transparent py-2.5 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50",
           className
         )}
         {...props}
@@ -79,7 +84,7 @@ function CommandList({
     <CommandPrimitive.List
       data-slot="command-list"
       className={cn(
-        "max-h-72 scroll-py-1 overflow-x-hidden overflow-y-auto p-1",
+        "max-h-[42dvh] scroll-py-1 overflow-x-hidden overflow-y-auto p-1 sm:max-h-80",
         className
       )}
       {...props}
@@ -163,11 +168,11 @@ function CommandShortcut({
 export {
   Command,
   CommandDialog,
-  CommandInput,
-  CommandList,
   CommandEmpty,
   CommandGroup,
+  CommandInput,
   CommandItem,
-  CommandShortcut,
+  CommandList,
   CommandSeparator,
+  CommandShortcut,
 };

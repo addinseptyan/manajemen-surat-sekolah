@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -103,6 +104,9 @@ export function SuratView({ arah }: SuratViewProps) {
   const isKeluar = arah === "keluar";
   const themeKey = isKeluar ? "blue" : "emerald";
   const theme = THEMES[themeKey];
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const {
     isDataLoading,
@@ -157,19 +161,70 @@ export function SuratView({ arah }: SuratViewProps) {
 
   useEffect(() => {
     const timer = setTimeout(() => setInitialLoading(false), 240);
-    const params = new URLSearchParams(window.location.search);
-    const qParam = params.get("q");
-    if (qParam) setQuery(qParam);
-    const fParam = params.get("filter");
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Sinkronisasi parameter URL (?q=..., ?tahun=..., ?filter=..., ?new=1) secara reaktif
+  useEffect(() => {
+    const qParam = searchParams.get("q");
+    const tahunParam = searchParams.get("tahun");
+    const fParam = searchParams.get("filter");
+    const newParam = searchParams.get("new");
+
+    if (qParam !== null) {
+      setQuery(qParam);
+      setFilterJenis("ALL");
+      setFilterKelengkapan("ALL");
+      setPage(1);
+    }
+    if (tahunParam) {
+      setFilterTahun(tahunParam);
+    }
     if (fParam === "slot") setFilterKelengkapan("SLOT_KOSONG");
     if (fParam === "scan") setFilterKelengkapan("TANPA_SCAN");
-    if (params.get("new") === "1") {
+
+    if (newParam === "1") {
       openCreateDialog();
-      window.history.replaceState({}, "", window.location.pathname);
+      router.replace(pathname, { scroll: false });
     }
-    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams, pathname, router]);
+
+  // Dengarkan event klik ulang Sidebar / Aksi Cepat ketika berada di rute yang sama
+  useEffect(() => {
+    const routeHref = isKeluar ? "/surat-keluar" : "/surat-masuk";
+
+    function onResetFilter(e: Event) {
+      const detail = (e as CustomEvent<{ href?: string }>).detail;
+      if (!detail?.href || detail.href === routeHref) {
+        setQuery("");
+        setFilterJenis("ALL");
+        setFilterKelengkapan("ALL");
+        setFilterTahun(String(getCurrentYearWib()));
+        setPage(1);
+      }
+    }
+
+    function onApplyQuickSearch(e: Event) {
+      const detail = (
+        e as CustomEvent<{ href?: string; q?: string; tahun?: string }>
+      ).detail;
+      if (detail?.href === routeHref && detail.q !== undefined) {
+        setQuery(detail.q);
+        if (detail.tahun) setFilterTahun(detail.tahun);
+        setFilterJenis("ALL");
+        setFilterKelengkapan("ALL");
+        setPage(1);
+      }
+    }
+
+    window.addEventListener("app:reset-route-filter", onResetFilter);
+    window.addEventListener("app:apply-quick-search", onApplyQuickSearch);
+    return () => {
+      window.removeEventListener("app:reset-route-filter", onResetFilter);
+      window.removeEventListener("app:apply-quick-search", onApplyQuickSearch);
+    };
+  }, [isKeluar]);
 
   // Daftar jabatan disposisi aktif (ditambah tag lama bila sedang mengedit surat lama)
   const availableDisposisiNames = useMemo(() => {
@@ -576,7 +631,7 @@ export function SuratView({ arah }: SuratViewProps) {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+              <div className="grid grid-cols-[minmax(0,1fr)_6.75rem] gap-2 sm:flex sm:flex-wrap sm:items-center">
                 {isKeluar && (
                   <div className="col-span-2 sm:w-48">
                     <KlasifikasiCombobox
@@ -599,7 +654,7 @@ export function SuratView({ arah }: SuratViewProps) {
                     setPage(1);
                   }}
                 >
-                  <SelectTrigger className="w-full sm:w-44">
+                  <SelectTrigger className="w-full sm:w-48">
                     <SelectValue placeholder="Kelengkapan" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1427,18 +1482,18 @@ export function SuratView({ arah }: SuratViewProps) {
 
             <div className="space-y-1.5">
               <Label htmlFor="lampiran">
-                Unggah Scan PDF / Gambar (Maks. 4 MB · Langsung Pratinjau)
+                Unggah Berkas — PDF, Gambar, atau Word/Excel (Maks. 4 MB)
               </Label>
               <Input
                 id="lampiran"
                 type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
                     if (file.size > 4.2 * 1024 * 1024) {
                       toast.error("Ukuran file terlalu besar", {
-                        description: "Maksimal ukuran scan PDF/gambar adalah 4 MB.",
+                        description: "Maksimal ukuran berkas lampiran adalah 4 MB.",
                       });
                       e.target.value = "";
                       return;

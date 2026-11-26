@@ -14,6 +14,7 @@ Dokumen ini mencatat alur kerja Git, Pull Request (PR), dan rilis otomatis dari 
 - [x] **PR #5 (`feat/auth-pin-session` -> `v0.6.0`)** — Autentikasi PIN sesungguhnya kompatibel Apps Script (`'h' + SHA256(salt + pin)`), sesi cookie `httpOnly` HMAC-SHA256 (12 jam / 7 hari), pembatasan percobaan PIN, dan RBAC ketat Admin (`src/proxy.ts`).
 - [x] **PR #6 (`feat/google-sheets-drive-api` -> `v1.0.0` — RILIS PRODUKSI FINAL)** — Integrasi penuh Google Sheets API v4 & Google Drive API v3 dengan dukungan akun gratis `@gmail.com` (OAuth2 Refresh Token 15 GB), tab khusus `Disposisi` otomatis, serta proxy streaming dokumen `/api/files/[fileId]` bebas *"Request Access"*.
 - [x] **Patch `v1.0.1` (`fix/year-modal-jump-urut` -> `v1.0.1`)** — Dropdown tahun dinamis mulai `2026` mengikuti tahun kalender berjalan WIB secara otomatis (`2027`, `2028`, dst. tanpa `2025`), pembukaan modal surat netral tanpa *auto-focus* pada input tanggal, serta validasi ketat *Lompati Nomor Urut* (hanya mengizinkan nomor urut berikutnya atau lebih besar).
+- [x] **Patch `v1.0.2` (`fix/mobile-ui-search-and-file-format` -> `v1.0.2`)** — Perbaikan overflow panah `Select` di layar HP, posisi modal Aksi Cepat di atas keyboard HP, sinkronisasi penuh pencarian Aksi Cepat ke seluruh arsip + anti-macet saat dihapus, reset otomatis kolom pencarian saat menekan ulang menu di Sidebar, serta pembacaan ekstensi & format berkas asli (`.pdf`, `.png`, `.jpg`, `.docx`, `.xlsx`) langsung dari Google Drive.
 
 ---
 

@@ -1,8 +1,10 @@
 import crypto from "node:crypto";
 import {
   renameDriveFileIfNeeded,
+  resolveDriveFilesMetadata,
   trashDriveFileIfNeeded,
   uploadSuratFileToDrive,
+  type DriveFileMeta,
 } from "./drive-storage";
 import { extractDriveFileId, isDemoMode } from "./google";
 import {
@@ -91,8 +93,11 @@ function deriveDisplayFileName(
   return `${cleanNomor}.pdf`;
 }
 
-/** Konversi baris tab Surat di Google Sheets menjadi objek Surat UI (100% kompatibel data lama Apps Script). */
-function mapSheetRowToSurat(r: Record<string, string>): (Surat & { _row: number; _rawFileUrl: string; _legacyBatal: boolean }) {
+/** Konversi baris tab Surat di Google Sheets menjadi objek Surat UI (100% kompatibel data lama Apps Script + deteksi ekstensi asli Google Drive). */
+function mapSheetRowToSurat(
+  r: Record<string, string>,
+  driveMetaMap?: Map<string, DriveFileMeta>
+): Surat & { _row: number; _rawFileUrl: string; _legacyBatal: boolean } {
   const arah: Arah = r.arah === "masuk" ? "masuk" : "keluar";
   const tanggal = normalizeSheetDate(r.tanggal) || new Date().toISOString().slice(0, 10);
   const tahun = Number(r.tahun) || Number(tanggal.slice(0, 4)) || new Date().getFullYear();
@@ -102,9 +107,18 @@ function mapSheetRowToSurat(r: Record<string, string>): (Surat & { _row: number;
   const rawFileUrl = String(r.fileUrl || "").trim();
   const fileId = extractDriveFileId(rawFileUrl);
   const proxyUrl = fileId ? `/api/files/${fileId}` : rawFileUrl;
+  const driveMeta = fileId && driveMetaMap ? driveMetaMap.get(fileId) : undefined;
 
   const isGap = r.status === "Belum Lengkap";
   const isLegacyBatal = r.status === "Batal";
+
+  const resolvedFileName = proxyUrl
+    ? driveMeta?.name ||
+      deriveDisplayFileName(r.nomor || "", arah, tanggal, rawFileUrl)
+    : undefined;
+  const resolvedMime = proxyUrl
+    ? driveMeta?.mimeType || "application/pdf"
+    : undefined;
 
   return {
     _row: Number(r._row) || 0,
@@ -122,15 +136,21 @@ function mapSheetRowToSurat(r: Record<string, string>): (Surat & { _row: number;
       ? `[Arsip Lama Dibatalkan] ${r.perihal || ""}`
       : r.perihal || "",
     catatan: r.catatan || "",
-    fileName: proxyUrl
-      ? deriveDisplayFileName(r.nomor || "", arah, tanggal, rawFileUrl)
-      : undefined,
+    fileName: resolvedFileName,
     fileUrl: proxyUrl,
-    fileMime: proxyUrl ? "application/pdf" : undefined,
+    fileMime: resolvedMime,
     status: isGap ? "Belum Lengkap" : "Lengkap",
     pembuat: r.pembuat || "-",
     dibuat: normalizeSheetDate(r.dibuat) || tanggal,
   };
+}
+
+async function hydrateSheetRowsToSurat(rows: Array<Record<string, string>>) {
+  const fileIds = rows
+    .map((r) => extractDriveFileId(r.fileUrl))
+    .filter((id): id is string => Boolean(id));
+  const driveMetaMap = await resolveDriveFilesMetadata(fileIds);
+  return rows.map((r) => mapSheetRowToSurat(r, driveMetaMap));
 }
 
 export async function getPengaturanData(): Promise<Pengaturan> {
@@ -180,9 +200,10 @@ export async function getBootstrapData(): Promise<{
     getPengaturanData(),
   ]);
 
-  const suratList: Surat[] = suratRows
-    .map(mapSheetRowToSurat)
-    .map(({ _row: _r, _rawFileUrl: _rf, _legacyBatal: _lb, ...clean }) => clean);
+  const hydrated = await hydrateSheetRowsToSurat(suratRows);
+  const suratList: Surat[] = hydrated.map(
+    ({ _row: _r, _rawFileUrl: _rf, _legacyBatal: _lb, ...clean }) => clean
+  );
 
   const klasifikasiList = sortKlasifikasi(
     klasRows.map((k) => ({ kode: k.kode, nama: k.nama }))
@@ -451,7 +472,7 @@ export async function saveSuratRecord(
     readSheetRows("Surat"),
     getPengaturanData(),
   ]);
-  const mappedRows = rawRows.map(mapSheetRowToSurat);
+  const mappedRows = rawRows.map((r) => mapSheetRowToSurat(r));
 
   const targetRow = payload.id
     ? mappedRows.find((s) => s.id === payload.id)
@@ -522,7 +543,7 @@ export async function saveSuratRecord(
       nextNomor &&
       nextNomor !== targetRow.nomor
     ) {
-      void renameDriveFileIfNeeded(targetRow._rawFileUrl, nextNomor);
+      await renameDriveFileIfNeeded(targetRow._rawFileUrl, nextNomor);
     }
 
     const nextPembuat =
@@ -554,7 +575,7 @@ export async function saveSuratRecord(
       `${targetRow.arah} ${nextNomor || perihal}`
     );
 
-    const freshRows = (await readSheetRows("Surat")).map(mapSheetRowToSurat);
+    const freshRows = await hydrateSheetRowsToSurat(await readSheetRows("Surat"));
     const savedClean = freshRows.find((s) => s.id === targetRow!.id);
     const cleanList = freshRows.map(
       ({ _row: _r, _rawFileUrl: _rf, _legacyBatal: _lb, ...c }) => c
@@ -661,7 +682,7 @@ export async function saveSuratRecord(
     `${payload.arah} ${nomor || perihal}`
   );
 
-  const freshRows = (await readSheetRows("Surat")).map(mapSheetRowToSurat);
+  const freshRows = await hydrateSheetRowsToSurat(await readSheetRows("Surat"));
   const savedClean = freshRows.find((s) => s.id === newId);
   const cleanList = freshRows.map(
     ({ _row: _r, _rawFileUrl: _rf, _legacyBatal: _lb, ...c }) => c
@@ -701,7 +722,7 @@ export async function deleteSuratRecord(
     return { ok: true, suratList: repo.suratList };
   }
 
-  const rows = (await readSheetRows("Surat")).map(mapSheetRowToSurat);
+  const rows = (await readSheetRows("Surat")).map((r) => mapSheetRowToSurat(r));
   const target = rows.find((s) => s.id === id);
   if (!target) {
     return { ok: false, error: "Surat tidak ditemukan di Spreadsheet." };
@@ -728,9 +749,12 @@ export async function deleteSuratRecord(
     `${target.arah} ${target.nomor || target.perihal}`
   );
 
-  const freshList = (await readSheetRows("Surat"))
-    .map(mapSheetRowToSurat)
-    .map(({ _row: _r, _rawFileUrl: _rf, _legacyBatal: _lb, ...c }) => c);
+  const freshHydrated = await hydrateSheetRowsToSurat(
+    await readSheetRows("Surat")
+  );
+  const freshList = freshHydrated.map(
+    ({ _row: _r, _rawFileUrl: _rf, _legacyBatal: _lb, ...c }) => c
+  );
 
   return { ok: true, suratList: freshList };
 }

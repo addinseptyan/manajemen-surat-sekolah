@@ -40,7 +40,14 @@ function NavGroupList({
           <Link
             key={item.href}
             href={item.href}
-            onClick={onNavigate}
+            onClick={() => {
+              window.dispatchEvent(
+                new CustomEvent("app:reset-route-filter", {
+                  detail: { href: item.href },
+                })
+              );
+              onNavigate?.();
+            }}
             className={cn(
               "group flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium transition-all",
               active
