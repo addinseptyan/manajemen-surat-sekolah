@@ -54,7 +54,10 @@ function DialogContent({
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="ring-offset-background focus:ring-ring hover:bg-muted absolute top-4 right-4 cursor-pointer rounded-md p-1 opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:outline-none">
+        <DialogPrimitive.Close
+          data-slot="dialog-close"
+          className="ring-offset-background focus:ring-ring hover:bg-muted absolute top-4 right-4 cursor-pointer rounded-md p-1 opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:outline-none"
+        >
           <X className="size-4" />
           <span className="sr-only">Tutup</span>
         </DialogPrimitive.Close>

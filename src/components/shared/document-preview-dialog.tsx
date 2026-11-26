@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { Download, FileCheck2, ShieldCheck } from "lucide-react";
+import { Download, FileCheck2, FileSpreadsheet, FileText, ShieldCheck } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import type { Surat } from "@/lib/types";
 import { formatTanggalIndo } from "@/lib/utils";
@@ -34,9 +34,26 @@ export function DocumentPreviewDialog({
   const isBlobFile = surat.fileUrl?.startsWith("blob:");
   const isLiveStream = Boolean(isProxyFile || isBlobFile);
 
+  const fileNameLower = (surat.fileName ?? "").toLowerCase();
+  const mimeLower = (surat.fileMime ?? "").toLowerCase();
+  const extMatch = fileNameLower.match(/\.([a-z0-9]+)$/);
+  const extUpper = extMatch ? extMatch[1].toUpperCase() : "PDF";
+
   const isImage =
-    surat.fileMime?.startsWith("image/") ||
-    /\.(png|jpe?g|webp|gif)$/i.test(surat.fileName ?? "");
+    mimeLower.startsWith("image/") ||
+    /\.(png|jpe?g|webp|gif)$/i.test(fileNameLower);
+
+  const isPdf =
+    !isImage &&
+    (mimeLower === "application/pdf" ||
+      (!extMatch && !mimeLower) ||
+      /\.pdf$/i.test(fileNameLower));
+
+  const isSpreadsheet =
+    mimeLower.includes("spreadsheet") ||
+    mimeLower.includes("excel") ||
+    /\.(xlsx?|csv)$/i.test(fileNameLower);
+
   const tanggalIndo = formatTanggalIndo(surat.tanggal);
 
   function handleDownload() {
@@ -45,7 +62,7 @@ export function DocumentPreviewDialog({
     if (isProxyFile) {
       const a = document.createElement("a");
       a.href = `${surat.fileUrl}?download=1`;
-      a.download = surat.fileName || `dokumen-${surat.id}.pdf`;
+      a.download = surat.fileName || `dokumen-${surat.id}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -121,6 +138,9 @@ export function DocumentPreviewDialog({
               <DialogTitle className="truncate text-base">
                 {surat.fileName || "Pratinjau Dokumen Surat"}
               </DialogTitle>
+              <Badge variant="violet" className="font-mono text-[10px] uppercase">
+                {extUpper}
+              </Badge>
               <Badge variant="blue" className="font-mono text-[11px]">
                 {surat.nomor || "Tanpa Nomor"}
               </Badge>
@@ -142,8 +162,8 @@ export function DocumentPreviewDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Area Viewer Dokumen */}
-        <div className="min-h-[380px] flex-1 overflow-auto rounded-xl border border-border bg-slate-100 p-3 sm:p-5 dark:bg-slate-900/80">
+        {/* Area Viewer Dokumen Berdasarkan Tipe File Asli */}
+        <div className="min-h-[340px] flex-1 overflow-auto rounded-xl border border-border bg-slate-100 p-3 sm:p-5 dark:bg-slate-900/80">
           {isLiveStream && surat.fileUrl ? (
             isImage ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -152,12 +172,40 @@ export function DocumentPreviewDialog({
                 alt={surat.fileName || "Lampiran surat"}
                 className="mx-auto max-h-[65vh] rounded-lg bg-white object-contain shadow"
               />
-            ) : (
+            ) : isPdf ? (
               <iframe
                 src={surat.fileUrl}
                 title={surat.fileName || "PDF Preview"}
                 className="h-[65vh] w-full rounded-lg bg-white shadow"
               />
+            ) : (
+              <div className="bg-card mx-auto flex max-w-md flex-col items-center rounded-xl border border-border p-6 text-center shadow-sm sm:my-8 sm:p-8">
+                <div className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+                  {isSpreadsheet ? (
+                    <FileSpreadsheet className="size-7" />
+                  ) : (
+                    <FileText className="size-7" />
+                  )}
+                </div>
+                <Badge variant="violet" className="mb-2 font-mono uppercase">
+                  Berkas {extUpper}
+                </Badge>
+                <h3 className="text-foreground text-sm font-semibold break-all">
+                  {surat.fileName || `dokumen.${extUpper.toLowerCase()}`}
+                </h3>
+                <p className="text-muted-foreground mt-1.5 text-xs leading-relaxed">
+                  Berkas berformat <b>.{extUpper.toLowerCase()}</b> tersimpan utuh di Google Drive
+                  sekolah. Unduh berkas untuk membukanya langsung di Microsoft Word / Excel / WPS
+                  Office.
+                </p>
+                <Button
+                  onClick={handleDownload}
+                  className="mt-5 w-full bg-indigo-600 text-white hover:bg-indigo-700 sm:w-auto"
+                >
+                  <Download className="size-4" />
+                  Unduh Berkas Asli (.{extUpper.toLowerCase()})
+                </Button>
+              </div>
             )
           ) : (
             <div className="mx-auto max-w-xl rounded-lg border border-slate-200 bg-white p-5 text-slate-900 shadow-md sm:p-8">
@@ -186,9 +234,9 @@ export function DocumentPreviewDialog({
                 <p>Dengan hormat,</p>
                 <p>
                   Ini adalah tampilan simulasi berkas contoh <b>{surat.fileName}</b> pada Mode
-                  Demo. Saat Anda mengunggah PDF/gambar nyata atau mengaktifkan Google Drive
-                  produksi (<code className="font-mono">USE_MOCK=false</code>), berkas asli akan
-                  langsung tampil utuh di jendela ini.
+                  Demo. Saat berkas diunggah atau mode produksi Google Drive aktif (
+                  <code className="font-mono">USE_MOCK=false</code>), berkas asli akan langsung
+                  ditampilkan sesuai format aslinya.
                 </p>
                 {surat.catatan && (
                   <p className="rounded-md bg-slate-50 p-2.5 text-[11px] text-slate-600">
