@@ -22,6 +22,7 @@ import {
   getCurrentYearWib,
   getTodayIsoWib,
 } from "@/lib/utils";
+import { APP_VERSION } from "@/lib/version";
 import { KlasifikasiCombobox } from "@/components/shared/klasifikasi-combobox";
 import { PageHeader } from "@/components/shared/page-header";
 import { DashboardSkeleton } from "@/components/shared/page-skeletons";
@@ -158,6 +159,11 @@ export default function DashboardPage() {
         description={`${pengaturan.namaSekolah} · Pantau penomoran, kelengkapan scan, dan kesiapan tahun baru.`}
         icon={LayoutDashboard}
         theme="indigo"
+        badge={
+          <Badge variant="violet" className="font-mono text-[11px]">
+            {APP_VERSION}
+          </Badge>
+        }
         actions={
           <Select value={tahun} onValueChange={setTahun}>
             <SelectTrigger className="w-full sm:w-40">

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { KeyRound, LogOut, MailCheck, Menu, Search, Sparkles } from "lucide-react";
 import { NAV_ITEMS, THEMES, type NavItem } from "@/lib/theme";
 import { cn, getInitials } from "@/lib/utils";
+import { APP_VERSION } from "@/lib/version";
 import { useApp } from "@/context/app-context";
 import { ChangePinDialog } from "@/components/shared/change-pin-dialog";
 import { CommandPalette } from "@/components/shared/command-palette";
@@ -205,6 +206,13 @@ function NavMenuContent({
               <LogOut className="text-muted-foreground size-4" />
             </Button>
           </div>
+        </div>
+
+        <div className="text-muted-foreground flex items-center justify-between px-1 pt-0.5 text-[11px]">
+          <span>Versi Aplikasi</span>
+          <span className="bg-muted/70 text-foreground/80 rounded-md border border-border px-1.5 py-0.5 font-mono text-[10px] font-medium">
+            {APP_VERSION}
+          </span>
         </div>
       </div>
     </div>

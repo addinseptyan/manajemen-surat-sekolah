@@ -158,9 +158,10 @@ export const INITIAL_SURAT: Surat[] = [
     pihak: "Orang Tua / Wali Siswa Kelas XII",
     perihal: "Undangan Rapat Pleno Kelulusan & Pelepasan Siswa",
     catatan: "Dilanjutkan langsung ke nomor 007 sembari mencari berkas 005-006",
-    fileName: "Undangan-Pleno-XII.pdf",
-    fileUrl: "#demo-file",
-    fileMime: "application/pdf",
+    fileName: "Undangan-Pleno-XII.docx",
+    fileUrl: "/api/files/demo-sample-docx",
+    fileMime:
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     status: "Lengkap",
     pembuat: "Admin Tata Usaha",
     dibuat: "2026-05-02",

@@ -9,6 +9,7 @@ interface PageHeaderProps {
   description: string;
   icon: LucideIcon;
   theme: ThemeKey;
+  badge?: ReactNode;
   actions?: ReactNode;
 }
 
@@ -17,6 +18,7 @@ export function PageHeader({
   description,
   icon: Icon,
   theme,
+  badge,
   actions,
 }: PageHeaderProps) {
   const t = THEMES[theme];
@@ -33,9 +35,12 @@ export function PageHeader({
           <Icon className="size-5" />
         </div>
         <div className="min-w-0">
-          <h1 className="text-foreground text-xl font-bold tracking-tight sm:text-2xl">
-            {title}
-          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-foreground text-xl font-bold tracking-tight sm:text-2xl">
+              {title}
+            </h1>
+            {badge}
+          </div>
           <p className="text-muted-foreground mt-0.5 text-sm">{description}</p>
         </div>
       </div>

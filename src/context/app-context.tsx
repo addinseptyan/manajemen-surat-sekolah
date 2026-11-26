@@ -17,6 +17,7 @@ import {
   INITIAL_SURAT,
   INITIAL_USERS,
 } from "@/lib/mock-data";
+import { formatBrowserTitle } from "@/lib/version";
 import type {
   Arah,
   DisposisiJabatan,
@@ -110,7 +111,13 @@ function sortKlasifikasi(list: Klasifikasi[]): Klasifikasi[] {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-export function AppProvider({ children }: { children: ReactNode }) {
+export function AppProvider({
+  children,
+  initialPengaturan = INITIAL_PENGATURAN,
+}: {
+  children: ReactNode;
+  initialPengaturan?: Pengaturan;
+}) {
   const pathname = usePathname();
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [authUser, setAuthUser] = useState<User | null>(null);
@@ -123,7 +130,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     useState<Klasifikasi[]>(INITIAL_KLASIFIKASI);
   const [disposisiList, setDisposisiList] =
     useState<DisposisiJabatan[]>(INITIAL_DISPOSISI);
-  const [pengaturan, setPengaturan] = useState<Pengaturan>(INITIAL_PENGATURAN);
+  const [pengaturan, setPengaturan] = useState<Pengaturan>(initialPengaturan);
 
   const klasifikasiList = useMemo(
     () => sortKlasifikasi(rawKlasifikasi),
@@ -133,7 +140,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = Boolean(authUser);
 
   useEffect(() => {
-    document.title = `${pengaturan.namaAplikasi} — ${pengaturan.namaSekolah}`;
+    document.title = formatBrowserTitle(
+      pengaturan.namaAplikasi,
+      pengaturan.namaSekolah
+    );
   }, [pengaturan.namaAplikasi, pengaturan.namaSekolah]);
 
   const refreshUsers = useCallback(async () => {
