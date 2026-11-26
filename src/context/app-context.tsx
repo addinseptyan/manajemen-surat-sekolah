@@ -74,7 +74,9 @@ interface AppContextValue {
   getNextUrut: (tahun: number) => number;
   getMissingUrutBefore: (tahun: number, targetUrut: number) => number[];
   saveSurat: (input: SaveSuratInput) => Promise<SaveSuratResult>;
-  deleteSurat: (id: string) => Promise<{ ok: boolean; error?: string }>;
+  deleteSurat: (
+    id: string
+  ) => Promise<{ ok: boolean; convertedToSlot?: boolean; error?: string }>;
   savePengaturan: (
     next: Pengaturan
   ) => Promise<{ ok: boolean; error?: string }>;
@@ -351,6 +353,7 @@ export function AppProvider({
       });
       const data = (await res.json()) as {
         ok: boolean;
+        convertedToSlot?: boolean;
         suratList?: Surat[];
         error?: string;
       };
@@ -358,7 +361,7 @@ export function AppProvider({
         return { ok: false, error: data.error || "Gagal menghapus surat." };
       }
       if (data.suratList) setSuratList(data.suratList);
-      return { ok: true };
+      return { ok: true, convertedToSlot: Boolean(data.convertedToSlot) };
     } catch {
       return { ok: false, error: "Gagal menghubungi server." };
     }
