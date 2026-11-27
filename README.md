@@ -1,6 +1,6 @@
 # Manajemen Surat Sekolah
 
-![Versi](https://img.shields.io/badge/rilis-v1.0.4-4f46e5)
+![Versi](https://img.shields.io/badge/rilis-v1.0.5-4f46e5)
 ![Next.js](https://img.shields.io/badge/Next.js-16.2%20(App%20Router)-000000)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06b6d4)
