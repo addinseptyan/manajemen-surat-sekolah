@@ -171,19 +171,18 @@ export default function LoginPage() {
   const displaySchoolName = brandInfo?.namaSekolah || pengaturan.namaSekolah;
 
   return (
-    <div className="relative flex min-h-dvh flex-col justify-between overflow-x-hidden bg-[#F8FAFC] text-slate-900 dark:bg-[#0B0F19] dark:text-slate-100">
-      {/* Pendar Halus Sudut Kanan Atas & Kiri Bawah */}
+    <div className="relative flex min-h-dvh flex-col justify-between bg-[#F8FAFC] text-slate-900 dark:bg-[#0B0F19] dark:text-slate-100">
+      {/* Lapisan Pendar Halus Tetap (Diklip penuh agar tidak pernah memicu scrollbar tambahan) */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-36 -right-36 size-[460px] rounded-full bg-indigo-500/[0.08] blur-[120px] dark:bg-indigo-500/[0.14]"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -bottom-40 -left-40 size-[380px] rounded-full bg-indigo-400/[0.04] blur-[120px] dark:bg-indigo-500/[0.07]"
-      />
+        className="pointer-events-none fixed inset-0 overflow-hidden"
+      >
+        <div className="absolute -top-36 -right-36 size-[460px] rounded-full bg-indigo-500/[0.08] blur-[120px] dark:bg-indigo-500/[0.14]" />
+        <div className="absolute -bottom-40 -left-40 size-[380px] rounded-full bg-indigo-400/[0.04] blur-[120px] dark:bg-indigo-500/[0.07]" />
+      </div>
 
       {/* Bar Atas: Identitas Aplikasi & Sekolah + Toggle Tema */}
-      <header className="relative z-10 mx-auto flex w-full max-w-[1060px] items-center justify-between px-5 pt-5 sm:px-8 sm:pt-7">
+      <header className="relative z-10 mx-auto flex w-full max-w-[1060px] items-center justify-between px-5 pt-4 sm:px-8 sm:pt-6">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs sm:size-10 sm:rounded-2xl dark:bg-indigo-500">
             <MailCheck className="size-4.5 sm:size-5" />
@@ -204,7 +203,7 @@ export default function LoginPage() {
       {/* Konten Tengah:
           - < 1024px (Di bawah Desktop / Non-Split-Screen): Section pertama disembunyikan penuh; hanya Kartu Login yang tampil rapi tepat di tengah layar.
           - >= 1024px (Desktop lg Split-Screen): Tampil 2 kolom penuh (Editorial Kiri + Kartu Login Kanan). */}
-      <main className="relative z-10 mx-auto my-auto flex w-full max-w-[1060px] items-center justify-center px-5 py-6 sm:px-8 sm:py-8 lg:grid lg:grid-cols-12 lg:gap-12">
+      <main className="relative z-10 mx-auto my-auto flex w-full max-w-[1060px] items-center justify-center px-5 py-4 sm:px-8 sm:py-5 lg:grid lg:grid-cols-12 lg:gap-12">
         {/* Section Pertama: Khusus Desktop Split-Screen (lg >= 1024px) */}
         <section className="hidden lg:col-span-7 lg:flex lg:flex-col lg:items-start lg:pr-8 lg:text-left">
           <div className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-indigo-200/70 bg-indigo-50/90 px-3.5 py-1.5 text-[11px] font-bold tracking-wider text-indigo-700 uppercase dark:border-indigo-800/60 dark:bg-indigo-950/60 dark:text-indigo-300">
@@ -241,7 +240,7 @@ export default function LoginPage() {
 
         {/* Section Kedua: Kartu Form Login (Tengah penuh saat < 1024px, Kolom Kanan saat >= 1024px) */}
         <section className="w-full max-w-[420px] lg:col-span-5 lg:ml-auto">
-          <div className="w-full rounded-[24px] border border-slate-200/85 bg-white p-6 shadow-[0_12px_36px_-12px_rgba(15,23,42,0.06)] sm:rounded-[28px] sm:p-8 dark:border-slate-800 dark:bg-slate-900/95 dark:shadow-none">
+          <div className="w-full rounded-[24px] border border-slate-200/85 bg-white p-6 shadow-[0_12px_36px_-12px_rgba(15,23,42,0.06)] sm:rounded-[28px] sm:p-7 dark:border-slate-800 dark:bg-slate-900/95 dark:shadow-none">
             <div>
               <p className="text-[11px] font-bold tracking-[0.12em] text-indigo-600 uppercase dark:text-indigo-400">
                 Selamat Datang
@@ -261,7 +260,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <form onSubmit={handleSubmit} className="mt-5 space-y-3.5">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                   Nama pengguna
@@ -382,7 +381,7 @@ export default function LoginPage() {
             </form>
 
             {/* Garis Pemisah Bawah Kartu: Status Versi + Tautan Pengembang */}
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4 text-xs text-slate-400 dark:border-slate-800/80 dark:text-slate-500">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3.5 text-xs text-slate-400 dark:border-slate-800/80 dark:text-slate-500">
               <span className="inline-flex items-center gap-1.5">
                 <span className="size-1.5 rounded-full bg-emerald-500" />
                 <span>Sistem Normal</span>
@@ -405,7 +404,7 @@ export default function LoginPage() {
       </main>
 
       {/* Catatan Keamanan Terpusat di Bawah Halaman */}
-      <footer className="relative z-10 px-5 pt-1 pb-5 text-center text-xs text-slate-400 sm:pb-6 dark:text-slate-500">
+      <footer className="relative z-10 px-5 pt-1 pb-4 text-center text-xs text-slate-400 sm:pb-5 dark:text-slate-500">
         <span className="inline-flex items-center gap-1.5">
           <ShieldCheck className="size-3.5 shrink-0 text-slate-400 dark:text-slate-500" />
           <span>Gunakan perangkat dan jaringan yang dipercaya.</span>
