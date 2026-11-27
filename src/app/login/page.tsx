@@ -1,28 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  AlertCircle,
   ArrowRight,
   ArrowUpRight,
-  Check,
-  Clock,
+  BookOpenCheck,
   Eye,
   EyeOff,
-  FileText,
-  Hash,
-  Inbox,
-  KeyRound,
   Loader2,
-  Lock,
   MailCheck,
   ShieldCheck,
-  Zap,
+  Sparkles,
 } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import type { Role } from "@/lib/types";
-import { getInitials } from "@/lib/utils";
 import {
   APP_VERSION,
   DEVELOPER_PORTFOLIO_URL,
@@ -120,11 +114,6 @@ export default function LoginPage() {
     };
   }, []);
 
-  const selectedUser = useMemo(
-    () => publicUsers.find((u) => u.id === selectedUserId) ?? null,
-    [publicUsers, selectedUserId]
-  );
-
   function handleSelectUser(userId: string) {
     setSelectedUserId(userId);
     setError("");
@@ -182,366 +171,246 @@ export default function LoginPage() {
   const displaySchoolName = brandInfo?.namaSekolah || pengaturan.namaSekolah;
 
   return (
-    <div className="bg-background grid min-h-screen lg:grid-cols-12">
-      {/* SISI KIRI: Split-Screen SaaS Showcase dengan Interactive Glass Mockup Card */}
-      <aside className="relative hidden flex-col justify-between overflow-hidden border-r border-slate-800/80 bg-[#0B0F1E] px-10 py-9 text-slate-100 lg:col-span-5 lg:flex xl:px-12">
-        {/* Lightweight Pure CSS/SVG Ambient Glow & Subtle Noise Grid */}
-        <svg
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.04]"
-        >
-          <defs>
-            <pattern
-              id="auth-grid"
-              width="36"
-              height="36"
-              patternUnits="userSpaceOnUse"
-            >
-              <path
-                d="M 36 0 L 0 0 0 36"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1"
-              />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#auth-grid)" />
-        </svg>
-        <div className="pointer-events-none absolute -top-24 -left-20 size-96 rounded-full bg-indigo-600/25 blur-[110px]" />
-        <div className="pointer-events-none absolute right-[-4rem] bottom-10 size-80 rounded-full bg-violet-600/20 blur-[100px]" />
+    <div className="relative flex min-h-dvh flex-col justify-between overflow-x-hidden bg-[#F8FAFC] text-slate-900 dark:bg-[#0B0F19] dark:text-slate-100">
+      {/* Pendar Halus Sudut Kanan Atas & Kiri Bawah */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-36 -right-36 size-[460px] rounded-full bg-indigo-500/[0.08] blur-[120px] dark:bg-indigo-500/[0.14]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-40 -left-40 size-[380px] rounded-full bg-indigo-400/[0.04] blur-[120px] dark:bg-indigo-500/[0.07]"
+      />
 
-        {/* Header Identitas Sekolah */}
-        <div className="relative z-10 flex items-center gap-3.5">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/30 ring-1 ring-white/20">
-            <MailCheck className="size-5" />
+      {/* Bar Atas: Identitas Aplikasi & Sekolah + Toggle Tema */}
+      <header className="relative z-10 mx-auto flex w-full max-w-[1060px] items-center justify-between px-5 pt-5 sm:px-8 sm:pt-7">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs sm:size-10 sm:rounded-2xl dark:bg-indigo-500">
+            <MailCheck className="size-4.5 sm:size-5" />
           </div>
           <div className="min-w-0">
-            <div className="truncate text-base font-bold tracking-tight text-white">
+            <div className="truncate text-sm leading-tight font-bold tracking-tight text-slate-900 sm:text-[15px] dark:text-white">
+              {displayAppName}
+            </div>
+            <div className="mt-0.5 truncate text-[11px] leading-tight text-slate-500 sm:text-xs dark:text-slate-400">
               {displaySchoolName}
             </div>
-            <div className="truncate text-xs text-slate-400">
-              {displayAppName} &amp; Arsip Dokumen Resmi
-            </div>
           </div>
         </div>
 
-        {/* Tengah: Floating Glassmorphic Workflow Mockup + Editorial Copy di Bawahnya */}
-        <div className="relative z-10 my-auto space-y-8 py-8">
-          {/* Glassmorphic Stacked System Card */}
-          <div className="rounded-2xl border border-white/[0.08] bg-slate-900/65 p-5 shadow-2xl backdrop-blur-md">
-            <div className="mb-4 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="size-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-                <span className="text-[11px] font-semibold tracking-wider text-slate-300 uppercase">
-                  Protokol Arsip Terpusat
-                </span>
-              </div>
-              <span className="rounded-md border border-indigo-400/25 bg-indigo-500/15 px-2 py-0.5 font-mono text-[10px] font-medium text-indigo-300">
-                Google Cloud Sync
-              </span>
-            </div>
+        <ThemeToggle className="size-9 shrink-0 rounded-full border-slate-200/90 bg-white shadow-xs ring-4 ring-indigo-500/10 hover:bg-slate-50 sm:size-10 dark:border-slate-800 dark:bg-slate-900 dark:ring-indigo-400/15 dark:hover:bg-slate-800" />
+      </header>
 
-            <div className="space-y-2.5">
-              {/* Baris 1 */}
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-slate-950/65 px-3.5 py-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-400">
-                    <Hash className="size-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-xs font-semibold text-slate-100">
-                      Penomoran Surat Keluar
-                    </div>
-                    <div className="truncate font-mono text-[10px] text-slate-400">
-                      Reset 001 Tahun Baru &bull; Penertiban Sela
-                    </div>
-                  </div>
-                </div>
-                <span className="shrink-0 rounded-md border border-emerald-500/25 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                  Otomatis
-                </span>
-              </div>
-
-              {/* Baris 2 */}
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-slate-950/65 px-3.5 py-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400">
-                    <Inbox className="size-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-xs font-semibold text-slate-100">
-                      Registrasi &amp; Disposisi Masuk
-                    </div>
-                    <div className="truncate font-mono text-[10px] text-slate-400">
-                      Kepsek &bull; Waka &bull; TU &bull; Kaprogli
-                    </div>
-                  </div>
-                </div>
-                <span className="shrink-0 rounded-md border border-indigo-500/25 bg-indigo-500/15 px-2 py-0.5 text-[10px] font-semibold text-indigo-300">
-                  Aktif
-                </span>
-              </div>
-
-              {/* Baris 3 */}
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-slate-950/65 px-3.5 py-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 text-violet-400">
-                    <FileText className="size-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-xs font-semibold text-slate-100">
-                      Pratinjau Berkas Internal
-                    </div>
-                    <div className="truncate font-mono text-[10px] text-slate-400">
-                      PDF &bull; Gambar &bull; Microsoft Word (.docx)
-                    </div>
-                  </div>
-                </div>
-                <span className="shrink-0 rounded-md border border-emerald-500/25 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                  Sinkron
-                </span>
-              </div>
-            </div>
+      {/* Konten Tengah:
+          - < 1024px (Di bawah Desktop / Non-Split-Screen): Section pertama disembunyikan penuh; hanya Kartu Login yang tampil rapi tepat di tengah layar.
+          - >= 1024px (Desktop lg Split-Screen): Tampil 2 kolom penuh (Editorial Kiri + Kartu Login Kanan). */}
+      <main className="relative z-10 mx-auto my-auto flex w-full max-w-[1060px] items-center justify-center px-5 py-6 sm:px-8 sm:py-8 lg:grid lg:grid-cols-12 lg:gap-12">
+        {/* Section Pertama: Khusus Desktop Split-Screen (lg >= 1024px) */}
+        <section className="hidden lg:col-span-7 lg:flex lg:flex-col lg:items-start lg:pr-8 lg:text-left">
+          <div className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-indigo-200/70 bg-indigo-50/90 px-3.5 py-1.5 text-[11px] font-bold tracking-wider text-indigo-700 uppercase dark:border-indigo-800/60 dark:bg-indigo-950/60 dark:text-indigo-300">
+            <Sparkles className="size-3.5 shrink-0 text-indigo-600 dark:text-indigo-400" />
+            <span className="truncate">{displaySchoolName}</span>
           </div>
 
-          {/* Editorial Headline & Description */}
-          <div className="space-y-2.5">
-            <h2 className="text-2xl leading-snug font-bold tracking-tight text-white xl:text-[1.7rem]">
-              Administrasi persuratan sekolah modern, aman &amp; terpadu.
-            </h2>
-            <p className="text-xs leading-relaxed text-slate-400 xl:text-[13px]">
-              Mempercepat tata kelola penomoran surat keluar, pencatatan surat masuk,
-              disposisi pimpinan, dan arsip digital {displaySchoolName} secara rapi serta
-              akuntabel.
-            </p>
-          </div>
-        </div>
+          <h1 className="mt-5 text-5xl leading-[1.1] font-extrabold tracking-tight text-slate-900 xl:text-[3.25rem] dark:text-white">
+            Tertib arsip,{" "}
+            <span className="mt-1 block text-indigo-600 dark:text-indigo-400">
+              siap melangkah.
+            </span>
+          </h1>
 
-        {/* Footer Micro-Trust Indicators */}
-        <div className="relative z-10 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-slate-400">
-          <span className="inline-flex items-center gap-1.5">
-            <Check className="size-3.5 text-emerald-400" />
-            Arsip Drive Privat
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Lock className="size-3.5 text-indigo-400" />
-            Sesi HMAC-SHA256
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Zap className="size-3.5 text-amber-400" />
-            Siap Mobile &amp; Desktop
-          </span>
-        </div>
-      </aside>
+          <p className="mt-5 max-w-lg text-base leading-relaxed text-slate-500 dark:text-slate-400">
+            Masuk menggunakan akun pegawai untuk mengelola penomoran surat keluar,
+            registrasi surat masuk, dan arsip digital sekolah.
+          </p>
 
-      {/* SISI KANAN: Clean Enterprise Authentication Canvas */}
-      <main className="bg-background relative flex flex-col justify-between px-6 py-6 sm:px-10 sm:py-8 lg:col-span-7 xl:px-16">
-        {/* Bar Atas: Identitas Ringkas Mobile + Theme Toggle */}
-        <div className="flex items-center justify-between lg:justify-end">
-          <div className="flex min-w-0 items-center gap-2.5 lg:hidden">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-xs">
-              <MailCheck className="size-4.5" />
+          <div className="mt-7 flex w-full max-w-[420px] items-center gap-3.5 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3.5 shadow-[0_2px_12px_-4px_rgba(15,23,42,0.04)] dark:border-slate-800/80 dark:bg-slate-900/70">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/70 dark:text-indigo-400">
+              <BookOpenCheck className="size-4.5" />
             </div>
             <div className="min-w-0">
-              <div className="text-foreground truncate text-sm font-bold tracking-tight">
-                {displaySchoolName}
+              <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
+                Siapkan akun pegawai
               </div>
-              <div className="text-muted-foreground truncate text-[11px]">
-                {displayAppName}
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                Pilih nama pengguna terdaftar dan masukkan PIN keamanan Anda.
               </div>
             </div>
           </div>
+        </section>
 
-          <ThemeToggle />
-        </div>
-
-        {/* Kontainer Form Utama */}
-        <div className="mx-auto my-auto w-full max-w-[420px] py-6">
-          <div className="mb-7 space-y-2">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200/80 bg-indigo-50/80 px-3 py-1 text-[11px] font-semibold text-indigo-700 dark:border-indigo-800/60 dark:bg-indigo-950/50 dark:text-indigo-300">
-              <span className="size-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />
-              Portal Akses Pegawai &amp; Staf TU
-            </div>
-            <h1 className="text-foreground text-2xl font-bold tracking-tight sm:text-[1.75rem]">
-              {displayAppName}
-            </h1>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Field Pilih Pengguna */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label className="text-muted-foreground text-[11px] font-bold tracking-wider uppercase">
-                  Pilih Pengguna
-                </Label>
-                <span className="rounded-md border border-indigo-200/70 bg-indigo-50/70 px-2 py-0.5 text-[10px] font-semibold text-indigo-600 dark:border-indigo-800/60 dark:bg-indigo-950/50 dark:text-indigo-300">
-                  Akun Terdaftar
-                </span>
-              </div>
-
-              <Select
-                disabled={loadingUsers}
-                value={selectedUserId}
-                onValueChange={handleSelectUser}
-              >
-                <SelectTrigger className="h-12 rounded-xl px-3">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[11px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                      {selectedUser ? getInitials(selectedUser.nama) : "TU"}
-                    </span>
-                    <SelectValue
-                      placeholder={
-                        loadingUsers ? "Memuat daftar pengguna..." : "Pilih pengguna"
-                      }
-                    />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  {publicUsers.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.nama} {u.role === "admin" ? "(Admin)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Field PIN Keamanan */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label
-                  htmlFor="pin"
-                  className="text-muted-foreground text-[11px] font-bold tracking-wider uppercase"
-                >
-                  PIN Keamanan
-                </Label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    toast.info("Lupa PIN Keamanan?", {
-                      description:
-                        "Silakan hubungi Admin Tata Usaha untuk mengatur ulang PIN akun Anda melalui menu Manajemen Pegawai.",
-                    })
-                  }
-                  className="cursor-pointer text-[11px] font-semibold text-indigo-600 transition-colors hover:text-indigo-700 hover:underline dark:text-indigo-400"
-                >
-                  Lupa PIN?
-                </button>
-              </div>
-
-              <div className="relative">
-                <KeyRound className="text-muted-foreground pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2" />
-                <Input
-                  id="pin"
-                  type={showPin ? "text" : "password"}
-                  inputMode="numeric"
-                  maxLength={8}
-                  required
-                  value={pin}
-                  onChange={(e) => {
-                    setPin(e.target.value);
-                    setError("");
-                  }}
-                  placeholder="Masukkan PIN keamanan"
-                  className="h-12 rounded-xl pr-10 pl-10 tracking-widest"
-                />
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  onClick={() => setShowPin((prev) => !prev)}
-                  aria-label={showPin ? "Sembunyikan PIN" : "Tampilkan PIN"}
-                  className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer p-1 transition-colors"
-                >
-                  {showPin ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
-              </div>
-
-              <div className="text-muted-foreground flex items-center justify-between px-0.5 text-[11px]">
-                <span>Format: 4–8 digit angka</span>
-                <span>Batas: 5x percobaan</span>
-              </div>
-            </div>
-
-            {/* Switch Durasi Sesi */}
-            <div className="bg-muted/35 flex items-center justify-between gap-3 rounded-xl border border-border/80 px-3.5 py-3">
-              <div className="min-w-0">
-                <Label
-                  htmlFor="remember-device"
-                  className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold"
-                >
-                  <Clock className="size-3.5 text-indigo-600 dark:text-indigo-400" />
-                  Ingat perangkat selama 7 hari
-                </Label>
-                <p className="text-muted-foreground mt-0.5 text-[11px]">
-                  {rememberDevice
-                    ? "Tetap masuk pada HP atau laptop pribadi Anda."
-                    : "Sesi standar 12 jam untuk komputer bersama di ruang TU."}
-                </p>
-              </div>
-              <Switch
-                id="remember-device"
-                checked={rememberDevice}
-                onCheckedChange={setRememberDevice}
-              />
+        {/* Section Kedua: Kartu Form Login (Tengah penuh saat < 1024px, Kolom Kanan saat >= 1024px) */}
+        <section className="w-full max-w-[420px] lg:col-span-5 lg:ml-auto">
+          <div className="w-full rounded-[24px] border border-slate-200/85 bg-white p-6 shadow-[0_12px_36px_-12px_rgba(15,23,42,0.06)] sm:rounded-[28px] sm:p-8 dark:border-slate-800 dark:bg-slate-900/95 dark:shadow-none">
+            <div>
+              <p className="text-[11px] font-bold tracking-[0.12em] text-indigo-600 uppercase dark:text-indigo-400">
+                Selamat Datang
+              </p>
+              <h2 className="mt-1.5 text-xl font-bold tracking-tight text-slate-900 sm:text-[1.45rem] dark:text-white">
+                Masuk sebagai pegawai
+              </h2>
+              <p className="mt-1 text-xs text-slate-500 sm:text-[13px] dark:text-slate-400">
+                Gunakan identitas yang sesuai dengan akun persuratan sekolah.
+              </p>
             </div>
 
             {error && (
-              <p className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-600 dark:border-red-900/60 dark:bg-red-950/60 dark:text-red-300">
-                {error}
-              </p>
+              <div className="mt-5 flex items-start gap-2.5 rounded-2xl border border-red-200/90 bg-red-50/60 px-3.5 py-3 text-xs leading-relaxed text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+                <AlertCircle className="mt-0.5 size-4 shrink-0 text-red-600 dark:text-red-400" />
+                <span>{error}</span>
+              </div>
             )}
 
-            <Button
-              type="submit"
-              disabled={isLoggingIn || loadingUsers}
-              className="h-12 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-sm font-semibold text-white shadow-md shadow-indigo-600/20 transition-all hover:from-indigo-700 hover:to-violet-700"
-            >
-              {isLoggingIn ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Memverifikasi...
-                </>
-              ) : (
-                <>
-                  Masuk Aplikasi
-                  <ArrowRight className="size-4" />
-                </>
-              )}
-            </Button>
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                  Nama pengguna
+                </Label>
+                <Select
+                  disabled={loadingUsers}
+                  value={selectedUserId}
+                  onValueChange={handleSelectUser}
+                >
+                  <SelectTrigger className="h-11 w-full rounded-xl border-slate-200/90 bg-white px-3.5 text-sm shadow-none dark:border-slate-800 dark:bg-slate-950">
+                    <SelectValue
+                      placeholder={
+                        loadingUsers
+                          ? "Memuat daftar pengguna..."
+                          : "Pilih nama pengguna"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {publicUsers.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.nama} {u.role === "admin" ? "(Admin)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {/* Kotak Pengingat Keamanan Sesi (Soft Emerald) */}
-            <div className="flex items-start gap-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50/70 px-3.5 py-3 text-[11px] leading-relaxed text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/35 dark:text-emerald-200">
-              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-              <span>
-                Sesi terenkripsi <code className="font-mono">httpOnly</code>. Pastikan Anda
-                menekan tombol <b>Keluar</b> setelah selesai bertugas pada perangkat bersama.
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label
+                    htmlFor="pin"
+                    className="text-xs font-semibold text-slate-800 dark:text-slate-200"
+                  >
+                    PIN keamanan
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      toast.info("Lupa PIN Keamanan?", {
+                        description:
+                          "Silakan hubungi Admin Tata Usaha untuk mengatur ulang PIN akun Anda melalui menu Manajemen Pegawai.",
+                      })
+                    }
+                    className="cursor-pointer text-xs font-medium text-slate-400 transition-colors hover:text-indigo-600 dark:hover:text-indigo-400"
+                  >
+                    Lupa PIN?
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <Input
+                    id="pin"
+                    type={showPin ? "text" : "password"}
+                    inputMode="numeric"
+                    maxLength={8}
+                    required
+                    value={pin}
+                    onChange={(e) => {
+                      setPin(e.target.value);
+                      setError("");
+                    }}
+                    placeholder="Masukkan PIN keamanan"
+                    className="h-11 rounded-xl border-slate-200/90 bg-white px-3.5 pr-10 text-sm shadow-none dark:border-slate-800 dark:bg-slate-950"
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowPin((prev) => !prev)}
+                    aria-label={showPin ? "Sembunyikan PIN" : "Tampilkan PIN"}
+                    className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer p-1 text-slate-400 transition-colors hover:text-slate-700 dark:hover:text-slate-200"
+                  >
+                    {showPin ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Opsi Sesi Ringkas */}
+              <div className="flex items-center justify-between gap-3 pt-0.5">
+                <Label
+                  htmlFor="remember-device"
+                  className="cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-300"
+                >
+                  Ingat perangkat selama 7 hari
+                </Label>
+                <Switch
+                  id="remember-device"
+                  checked={rememberDevice}
+                  onCheckedChange={setRememberDevice}
+                />
+              </div>
+
+              <Button
+                type="submit"
+                disabled={isLoggingIn || loadingUsers}
+                className="mt-1 h-11 w-full rounded-full bg-indigo-600 text-sm font-semibold text-white shadow-sm shadow-indigo-600/20 transition-colors hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500"
+              >
+                {isLoggingIn ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Memverifikasi...
+                  </>
+                ) : (
+                  <>
+                    Masuk ke aplikasi
+                    <ArrowRight className="size-4" />
+                  </>
+                )}
+              </Button>
+
+              <p className="pt-0.5 text-center text-xs leading-relaxed text-slate-400 dark:text-slate-500">
+                Setelah lima percobaan gagal, akses dikunci sementara untuk keamanan.
+              </p>
+            </form>
+
+            {/* Garis Pemisah Bawah Kartu: Status Versi + Tautan Pengembang */}
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4 text-xs text-slate-400 dark:border-slate-800/80 dark:text-slate-500">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-emerald-500" />
+                <span>Sistem Normal</span>
+                <span aria-hidden="true">&bull;</span>
+                <span className="font-mono text-[11px]">{APP_VERSION}</span>
               </span>
+
+              <a
+                href={DEVELOPER_PORTFOLIO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 transition-colors hover:text-slate-700 hover:underline dark:hover:text-slate-300"
+              >
+                <span>Pengembang Sistem</span>
+                <ArrowUpRight className="size-3 opacity-75" />
+              </a>
             </div>
-          </form>
-        </div>
-
-        {/* Status Bar Bawah: Versi (Hanya 1x) di Kiri + Tautan Halus Pengembang di Kanan */}
-        <footer className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-4 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="size-2 rounded-full bg-emerald-500" />
-            <span>Sistem Normal</span>
-            <span aria-hidden="true" className="opacity-40">
-              &bull;
-            </span>
-            <span className="font-mono text-[11px]">{APP_VERSION}</span>
           </div>
-
-          <a
-            href={DEVELOPER_PORTFOLIO_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-foreground inline-flex items-center gap-1 underline-offset-4 transition-colors hover:underline"
-          >
-            <span>Pengembang Sistem</span>
-            <ArrowUpRight className="size-3 opacity-75" />
-          </a>
-        </footer>
+        </section>
       </main>
+
+      {/* Catatan Keamanan Terpusat di Bawah Halaman */}
+      <footer className="relative z-10 px-5 pt-1 pb-5 text-center text-xs text-slate-400 sm:pb-6 dark:text-slate-500">
+        <span className="inline-flex items-center gap-1.5">
+          <ShieldCheck className="size-3.5 shrink-0 text-slate-400 dark:text-slate-500" />
+          <span>Gunakan perangkat dan jaringan yang dipercaya.</span>
+        </span>
+      </footer>
     </div>
   );
 }
