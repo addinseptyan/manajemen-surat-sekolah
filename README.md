@@ -1,6 +1,6 @@
 # Manajemen Surat Sekolah
 
-![Versi](https://img.shields.io/badge/rilis-v1.0.5-4f46e5)
+![Versi](https://img.shields.io/badge/rilis-v1.0.6-4f46e5)
 ![Next.js](https://img.shields.io/badge/Next.js-16.2%20(App%20Router)-000000)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06b6d4)
@@ -10,11 +10,11 @@ Sistem informasi manajemen arsip **Surat Masuk**, **Surat Keluar**, **Penomoran 
 
 ---
 
-## Fitur Utama (`v1.0.0`)
+## Fitur Utama (`v1.0.6`)
 
-- **Penomoran Surat Keluar Otomatis & Lompat Nomor Urut (Reserve Slot)**
+- **Penomoran Surat Keluar Otomatis, Lompat Nomor Urut, & Pemulihan Celah**
   - Penomoran otomatis berbasis pola fleksibel (`{urut}`, `{jenis}`, `{bulan}`, `{bulan_angka}`, `{tahun}`) yang otomatis me-reset nomor urut kembali ke `001` setiap pergantian tahun baru.
-  - Fitur **Lompat Nomor Urut**: apabila TU menerbitkan nomor urut lebih tinggi (misal lompat ke `010`), nomor sela yang kosong otomatis dicatat sebagai slot **`Belum Lengkap`** agar mudah dilengkapi menyusul tanpa nomor ganda.
+  - Fitur **Lompat Nomor Urut & Proteksi Nomor Tengah**: nomor sela yang dilewati otomatis dicatat sebagai slot **`Belum Lengkap`**, penghapusan surat di tengah urutan otomatis mengembalikannya menjadi slot kosong yang siap diisi ulang, serta dilengkapi *chip* pemulihan otomatis jika terdapat nomor urut lama yang terlanjur terhapus.
 - **Pratinjau PDF, Gambar, & Microsoft Word (`.docx`) Dalam Aplikasi (Bebas *"Request Access"*)**
   - Proxy dokumen internal terautentikasi (`/api/files/[fileId]`) mengalirkan berkas PDF, gambar, serta merender halaman **`.docx`** langsung di dalam modal aplikasi (baik berkas baru maupun arsip lama Apps Script), sembari menjaga folder Google Drive sekolah **100% Privat**.
 - **Mendukung Penuh Akun `@gmail.com` Sekolah Gratis (15 GB)**
@@ -39,7 +39,7 @@ Sistem informasi manajemen arsip **Surat Masuk**, **Surat Keluar**, **Penomoran 
 | UI & Styling | Tailwind CSS v4, shadcn/ui, Radix UI, Lucide Icons, Sonner Toast, next-themes |
 | Keamanan | Web Crypto HMAC-SHA256 `httpOnly` Cookie Session + SHA-256 Salted PIN + Server RBAC |
 | Cloud Storage | Native REST Google Sheets API v4 & Google Drive API v3 (Zero-bloat, OAuth2 Refresh Token & Service Account support) |
-| CI/CD | GitHub Actions (`ci.yml` + `sync-release.yml` auto-mirror ke organisasi sekolah) + Vercel |
+| CI/CD | GitHub Actions (`ci.yml` + `mirror.yml` auto-mirror ke organisasi sekolah) + Vercel |
 
 ---
 
